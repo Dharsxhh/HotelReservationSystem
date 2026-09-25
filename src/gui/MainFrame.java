@@ -1,6 +1,7 @@
 package gui;
 
 import javax.swing.*;
+import dao.ReservationDAO;
 import java.awt.*;
 import java.util.List;
 import dao.RoomDAO;
@@ -49,6 +50,31 @@ public class MainFrame extends JFrame {
             if (selectedRoom != null) {
                 BookingDialog dialog = new BookingDialog(this, selectedRoom);
                 dialog.setVisible(true);
+                
+                // NEW CODE: Check if they clicked Confirm and process the booking
+                if (dialog.isConfirmed()) {
+                    ReservationDAO resDAO = new ReservationDAO();
+                    boolean success = resDAO.createReservation(
+                        dialog.getCustomerName(),
+                        dialog.getContactNumber(),
+                        dialog.getCheckIn(),
+                        dialog.getCheckOut(),
+                        dialog.getTotalPrice(),
+                        selectedRoom.getRoomNumber()
+                    );
+                    
+                    if (success) {
+                        JOptionPane.showMessageDialog(this, "Booking Successful! Room " + selectedRoom.getRoomNumber() + " is now reserved.");
+                        
+                        // Refresh the visual list so the booked room disappears!
+                        listModel.clear();
+                        for (Room room : roomDAO.getAvailableRooms()) {
+                            listModel.addElement(room);
+                        }
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Database Error: Could not complete booking.", "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
             } else {
                 JOptionPane.showMessageDialog(this, "Please select a room from the list first.", "No Room Selected", JOptionPane.WARNING_MESSAGE);
             }

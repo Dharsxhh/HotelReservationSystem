@@ -3,6 +3,8 @@ package dao;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.List;
+import model.Room;
 
 public class DatabaseHelper {
     
@@ -30,7 +32,16 @@ public class DatabaseHelper {
     public static void main(String[] args) {
         try (Connection conn = getConnection()) {
             if (conn != null) {
-                System.out.println("Successfully connected to the Oracle database!");
+                System.out.println("Successfully connected to the Oracle database!\n");
+                
+                // Test the RoomDAO
+                RoomDAO roomDAO = new RoomDAO();
+                List<Room> allRooms = roomDAO.getAllRooms();
+                
+                System.out.println("--- Hotel Rooms in Database ---");
+                for (Room room : allRooms) {
+                    System.out.println(room.toString());
+                }
             }
         } catch (SQLException e) {
             System.err.println("Failed to connect. Check your password and ensure Oracle is running.");
