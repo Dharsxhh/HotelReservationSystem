@@ -1,32 +1,40 @@
-# Hotel Room Reservation System
+# Hotel Reservation System 🏨
 
-A desktop application built with Java Swing and Oracle SQL to manage hotel room inventory, process guest reservations, and streamline front-desk workflows. This project is developed as a second-year engineering coursework prototype.
+A full-stack, desktop-based Hotel Management Application built with **Java (Swing)** and an **Oracle SQL Database**. This system provides front-desk staff with a seamless interface to manage room inventory, process new bookings, check guests out, and view historical reservation ledgers.
 
-## 🛠 Technology Stack
+## 🚀 Features
 
-*   **Front-End:** Java Swing (JDK 8+)
-*   **Back-End Database:** Oracle Database (e.g., Oracle XE)
-*   **Database Connectivity:** JDBC (Oracle JDBC Driver - `ojdbc17.jar`)
-*   **Architecture:** 2-Tier Desktop Application (DAO Pattern)
+* **Real-Time Inventory Dashboard:** Displays available rooms dynamically categorized by capacity (Single, Double, and Triple Sharing).
+* **Dynamic Booking Engine:** Calculates total stays based on check-in/check-out dates and dynamically generates guest input fields based on room capacity.
+* **Transactional Database Integrity:** Utilizes JDBC with disabled auto-commit to ensure safe, multi-table SQL transactions when creating bookings.
+* **Checkout & Availability Management:** Allows staff to check guests out, instantly freeing up the room for new bookings while preserving the guest's data.
+* **Historical Ledger:** A complete, queryable history of all past and present reservations using multi-table SQL `JOIN` statements.
 
-## 👥 Team Roles
+## 🛠️ Tech Stack
 
-*   **Member 1 (Database Architect):** Oracle schema design, SQL scripts, and data integrity.
-*   **Member 2 (Backend / JDBC Developer):** Data Access Object (DAO) classes and SQL query execution.
-*   **Member 3 (GUI Developer):** Java Swing interface design and event handling setup.
-*   **Member 4 (Systems Integrator & Tech Writer):** Frontend/Backend integration, documentation (SRS, SPP, UML), and repository management.
+* **Frontend:** Java Swing (AWT, JFrame, JDialog, JTable)
+* **Backend:** Java (JDK) implementing the DAO (Data Access Object) design pattern
+* **Database:** Oracle Database (SQL)
+* **Connectivity:** JDBC (`ojdbc` driver)
+* **Version Control:** Git / GitHub
 
-## ⚙️ Prerequisites
+## 🗄️ Database Architecture
 
-Before running this project, ensure you have the following installed on your local machine:
-1.  **Java Development Kit (JDK):** Version 8 or higher.
-2.  **Oracle Database:** Oracle XE or standard edition, accessible via SQL*Plus or SQL Developer.
-3.  **IDE:** IntelliJ IDEA, Eclipse, or NetBeans.
-4.  **Oracle JDBC Driver:** `ojdbc8.jar` (included in the `lib/` directory of this repository).
+The system utilizes a Header-Detail relational database schema to ensure data normalization and integrity:
+1. `rooms`: Manages room inventory, pricing, availability status, and maximum guest capacity.
+2. `reservations`: Stores primary guest details, date math, and payment totals.
+3. `reserved_rooms`: A junction table linking specific reservations to specific rooms.
 
-## 🚀 Setup & Installation
+## ⚙️ Setup & Installation
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/Dharsxhh/HotelReservationSystem.git
-cd HotelReservationSystem
+1. Clone the repository:
+   ```bash
+   git clone [https://github.com/Dharsxhh/HotelReservationSystem.git](https://github.com/Dharsxhh/HotelReservationSystem.git)
+
+2. Set up the Oracle Database by running the provided SQL schema scripts to create the rooms, reservations, and reserved_rooms tables.
+
+3. Add the Oracle JDBC driver (ojdbc.jar) to your project's build path/libraries.
+
+4. Update the DatabaseHelper.java file with your specific Oracle database credentials (URL, username, password).
+
+5. Compile and run gui.MainFrame.java to launch the application.
