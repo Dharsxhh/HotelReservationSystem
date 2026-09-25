@@ -30,3 +30,11 @@ The system utilizes a Header-Detail relational database schema to ensure data no
 1. Clone the repository:
    ```bash
    git clone [https://github.com/Dharsxhh/HotelReservationSystem.git](https://github.com/Dharsxhh/HotelReservationSystem.git)
+
+2. Set up the Oracle Database by running the provided SQL schema scripts to create the rooms, reservations, and reserved_rooms tables.
+
+3. Add the Oracle JDBC driver (ojdbc.jar) to your project's build path/libraries.
+
+4. Update the DatabaseHelper.java file with your specific Oracle database credentials (URL, username, password).
+
+5. Compile and run gui.MainFrame.java to launch the application.
