@@ -9,7 +9,8 @@ import model.Room;
 public class BookingDialog extends JDialog {
     
     private static final long serialVersionUID = 1L;
-    private JTextField nameField, contactField, checkInField, checkOutField;
+    private JTextField[] nameFields; // Now an array to hold multiple name fields
+    private JTextField contactField, checkInField, checkOutField;
     private JLabel nightsLabel, totalLabel;
     private Room selectedRoom;
     private boolean isConfirmed = false;
@@ -19,7 +20,7 @@ public class BookingDialog extends JDialog {
         super(parent, "New Booking - Room " + room.getRoomNumber(), true); 
         this.selectedRoom = room;
         
-        setSize(550, 480);
+        setSize(550, 550); // Made window slightly taller to fit more names
         setLocationRelativeTo(parent);
         setLayout(new BorderLayout(15, 15));
         
@@ -39,35 +40,49 @@ public class BookingDialog extends JDialog {
         gbc.insets = new Insets(10, 10, 10, 10);
         gbc.weightx = 1.0;
 
-        // Row 1: Room Details
-        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        int currentRow = 0;
+
+        // Row: Room Details
+        gbc.gridx = 0; gbc.gridy = currentRow++; gbc.gridwidth = 2;
         formPanel.add(new JLabel("Confirm Room: " + room.getRoomType() + " (Room " + room.getRoomNumber() + ") - ₹" + room.getPrice() + "/night"), gbc);
 
-        // Row 2: Name
-        gbc.gridwidth = 1; gbc.gridy = 1;
-        formPanel.add(new JLabel("Customer Name:"), gbc);
-        nameField = new JTextField(20);
-        gbc.gridx = 1; formPanel.add(nameField, gbc);
+        // DYNAMIC ROWS: Generate Name fields based on capacity
+        gbc.gridwidth = 1;
+        int capacity = room.getMaxGuests();
+        nameFields = new JTextField[capacity];
+        
+        for (int i = 0; i < capacity; i++) {
+            gbc.gridx = 0; gbc.gridy = currentRow;
+            formPanel.add(new JLabel("Guest " + (i + 1) + " Name:"), gbc);
+            
+            nameFields[i] = new JTextField(20);
+            gbc.gridx = 1; 
+            formPanel.add(nameFields[i], gbc);
+            currentRow++;
+        }
 
-        // Row 3: Contact
-        gbc.gridx = 0; gbc.gridy = 2;
-        formPanel.add(new JLabel("Contact Number:"), gbc);
+        // Row: Contact (Only one needed)
+        gbc.gridx = 0; gbc.gridy = currentRow;
+        formPanel.add(new JLabel("Primary Contact Number:"), gbc);
         contactField = new JTextField(20);
         gbc.gridx = 1; formPanel.add(contactField, gbc);
+        currentRow++;
 
-        // Row 4: Check-in
-        gbc.gridx = 0; gbc.gridy = 3;
+        // Row: Check-in
+        gbc.gridx = 0; gbc.gridy = currentRow;
         formPanel.add(new JLabel("Check-in (YYYY-MM-DD):"), gbc);
         checkInField = new JTextField("2026-10-01"); 
         gbc.gridx = 1; formPanel.add(checkInField, gbc);
+        currentRow++;
 
-        // Row 5: Check-out
-        gbc.gridx = 0; gbc.gridy = 4;
+        // Row: Check-out
+        gbc.gridx = 0; gbc.gridy = currentRow;
         formPanel.add(new JLabel("Check-out (YYYY-MM-DD):"), gbc);
         checkOutField = new JTextField("2026-10-05");
         gbc.gridx = 1; formPanel.add(checkOutField, gbc);
+        currentRow++;
         
-        // Row 6: Calculation Panel
+        // Row: Calculation Panel
         JPanel calcPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton calcButton = new JButton("Calculate Total");
         nightsLabel = new JLabel("  Nights: 0  |");
@@ -79,7 +94,7 @@ public class BookingDialog extends JDialog {
         calcPanel.add(nightsLabel);
         calcPanel.add(totalLabel);
         
-        gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = currentRow; gbc.gridwidth = 2;
         formPanel.add(calcPanel, gbc);
 
         add(formPanel, BorderLayout.CENTER);
@@ -103,7 +118,6 @@ public class BookingDialog extends JDialog {
         add(bottomPanel, BorderLayout.SOUTH);
     }
     
-    // The Math Logic
     private void calculatePrice() {
         try {
             LocalDate inDate = LocalDate.parse(checkInField.getText());
@@ -122,11 +136,26 @@ public class BookingDialog extends JDialog {
         }
     }
     
-    // Getters for the DAO to use later
+    // NEW LOGIC: Combines all guest names into one string for the database
+    public String getCustomerName() { 
+        StringBuilder allNames = new StringBuilder();
+        for (int i = 0; i < nameFields.length; i++) {
+            String name = nameFields[i].getText().trim();
+            if (!name.isEmpty()) {
+                if (allNames.length() > 0) {
+                    allNames.append(" & ");
+                }
+                allNames.append(name);
+            }
+        }
+        // If they left all blank, return "Unknown Guest" to prevent DB errors
+        return allNames.length() > 0 ? allNames.toString() : "Unknown Guest"; 
+    }
+    
     public boolean isConfirmed() { return isConfirmed; }
-    public String getCustomerName() { return nameField.getText(); }
     public String getContactNumber() { return contactField.getText(); }
     public String getCheckIn() { return checkInField.getText(); }
     public String getCheckOut() { return checkOutField.getText(); }
     public double getTotalPrice() { return calculatedTotal; }
 }
+   

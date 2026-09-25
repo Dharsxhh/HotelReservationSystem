@@ -80,11 +80,41 @@ public class MainFrame extends JFrame {
             }
         });
         
+     // Create the new View button
+        JButton viewBookingsButton = new JButton("View Current Bookings");
+        viewBookingsButton.setFont(new Font("Arial", Font.BOLD, 14));
+        viewBookingsButton.setFocusPainted(false);
+        viewBookingsButton.addActionListener(e -> {
+            ViewBookingsDialog viewDialog = new ViewBookingsDialog(this);
+            viewDialog.setVisible(true); // Program pauses here while dialog is open
+            
+            // NEW CODE: As soon as the dialog closes, refresh the main available rooms list
+            listModel.clear();
+            for (Room room : roomDAO.getAvailableRooms()) {
+                listModel.addElement(room);
+            }
+        });
+     // Create the new History button
+        JButton historyButton = new JButton("Booking History");
+        historyButton.setFont(new Font("Arial", Font.BOLD, 14));
+        historyButton.setFocusPainted(false);
+        historyButton.addActionListener(e -> {
+            HistoryDialog historyDialog = new HistoryDialog(this);
+            historyDialog.setVisible(true);
+        });
+
+        // Add ALL THREE buttons to the bottom panel
         JPanel bottomPanel = new JPanel();
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0));
         bottomPanel.add(bookButton);
+        bottomPanel.add(Box.createHorizontalStrut(15)); 
+        bottomPanel.add(viewBookingsButton);
+        bottomPanel.add(Box.createHorizontalStrut(15));
+        bottomPanel.add(historyButton);
         add(bottomPanel, BorderLayout.SOUTH);
     }
+
+    
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
