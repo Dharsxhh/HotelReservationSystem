@@ -38,3 +38,4 @@ The system utilizes a Header-Detail relational database schema to ensure data no
 4. Update the DatabaseHelper.java file with your specific Oracle database credentials (URL, username, password).
 
 5. Compile and run gui.MainFrame.java to launch the application.
+
