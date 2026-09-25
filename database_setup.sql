@@ -37,3 +37,35 @@ CREATE TABLE reserved_rooms (
 );
 
 COMMIT;
+
+-- Add the new column (defaults to 2 guests if not specified)
+ALTER TABLE rooms ADD max_guests NUMBER(2) DEFAULT 2;
+
+-- Set specific capacities for your current rooms
+UPDATE rooms SET max_guests = 2 WHERE room_number = '101';
+UPDATE rooms SET max_guests = 2 WHERE room_number = '102';
+UPDATE rooms SET max_guests = 3 WHERE room_number = '103';
+
+COMMIT;
+
+-- Standard Rooms (Single Sharing - ₹1500.00)
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('104', 'Standard', 1500.00, 1, 1);
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('105', 'Standard', 1500.00, 1, 1);
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('106', 'Standard', 1500.00, 1, 1);
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('107', 'Standard', 1500.00, 1, 1);
+
+-- Deluxe Rooms (Double Sharing - ₹3500.00)
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('201', 'Deluxe', 3500.00, 1, 2);
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('202', 'Deluxe', 3500.00, 1, 2);
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('203', 'Deluxe', 3500.00, 1, 2);
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('204', 'Deluxe', 3500.00, 1, 2);
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('205', 'Deluxe', 3500.00, 1, 2);
+
+-- Suite Rooms (Triple Sharing - ₹7500.00)
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('301', 'Suite', 7500.00, 1, 3);
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('302', 'Suite', 7500.00, 1, 3);
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('303', 'Suite', 7500.00, 1, 3);
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('304', 'Suite', 7500.00, 1, 3);
+INSERT INTO rooms (room_number, room_type, price, is_available, max_guests) VALUES ('305', 'Suite', 7500.00, 1, 3);
+
+COMMIT;
