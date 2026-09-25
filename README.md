@@ -6,7 +6,7 @@ A desktop application built with Java Swing and Oracle SQL to manage hotel room 
 
 *   **Front-End:** Java Swing (JDK 8+)
 *   **Back-End Database:** Oracle Database (e.g., Oracle XE)
-*   **Database Connectivity:** JDBC (Oracle JDBC Driver - `ojdbc8.jar`)
+*   **Database Connectivity:** JDBC (Oracle JDBC Driver - `ojdbc17.jar`)
 *   **Architecture:** 2-Tier Desktop Application (DAO Pattern)
 
 ## 👥 Team Roles
