@@ -48,7 +48,7 @@ public class BookingDialog extends JDialog {
         int row = 0;
 
         JLabel roomLabel = new JLabel(room.toString());
-        roomLabel.setForeground(UITheme.MUTED);
+        roomLabel.setForeground(UITheme.muted());
         gbc.gridx = 0; gbc.gridy = row++; gbc.gridwidth = 2;
         form.add(roomLabel, gbc);
         gbc.gridwidth = 1;

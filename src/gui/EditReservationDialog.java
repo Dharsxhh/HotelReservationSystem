@@ -24,10 +24,16 @@ public class EditReservationDialog extends JDialog {
     private final JLabel priceLabel = new JLabel();
     private final JLabel errorLabel = UITheme.errorLabel();
     private boolean saved;
+    private final boolean customerMode;
 
     public EditReservationDialog(Window parent, BookedRoom reservation) {
+        this(parent, reservation, false);
+    }
+
+    public EditReservationDialog(Window parent, BookedRoom reservation, boolean customerMode) {
         super(parent, "Modify Reservation #" + reservation.getReservationId(), ModalityType.APPLICATION_MODAL);
         this.reservation = reservation;
+        this.customerMode = customerMode;
         setSize(620, 430);
         setLocationRelativeTo(parent);
         setLayout(new BorderLayout());
@@ -94,7 +100,7 @@ public class EditReservationDialog extends JDialog {
             errorLabel.setText("Could not load the room list - check the database connection.");
             return;
         }
-        String error =Validator.checkReservation(getCustomerName(), getContactNumber(), getCheckIn(), getCheckOut(), false);
+        String error = Validator.checkReservation(getCustomerName(), getContactNumber(), getCheckIn(), getCheckOut(), customerMode);
         if (error == null && !new ReservationDAO().isRoomFree(getRoom().getRoomNumber(), getCheckIn(), getCheckOut(),
                                                                reservation.getReservationId())) {
             error = "Room " + getRoom().getRoomNumber() + " is already booked for some of these dates.";

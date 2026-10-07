@@ -23,6 +23,21 @@ public final class Validator {
         return null;
     }
 
+    public static String checkUsername(String username) {
+        if (username == null || !username.matches("[A-Za-z0-9_]{4,20}")) return "Username must be 4-20 letters, digits or _";
+        return null;
+    }
+
+    public static String checkPassword(String password) {
+        if (password == null || !password.matches("(?=.*[A-Za-z])(?=.*\\d).{6,}")) return "Password needs 6+ characters, a letter and a digit";
+        return null;
+    }
+
+    public static String checkEmail(String email) {
+        if (email == null || email.isBlank()) return null;
+        return email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$") ? null : "Enter a valid email address";
+    }
+
     // newBooking = true also stops check-in dates in the past.
     // (When editing, a guest who already arrived keeps their past check-in date.)
     public static String checkDates(LocalDate checkIn, LocalDate checkOut, boolean newBooking) {

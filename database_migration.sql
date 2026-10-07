@@ -1,3 +1,4 @@
+-- Run database_setup.sql instead for a fresh database.
 -- Upgrade an older HotelReservationSystem database without deleting reservations.
 -- Run this as the same Oracle user configured in db.properties.
 
@@ -39,6 +40,22 @@ END;
 
 BEGIN
     EXECUTE IMMEDIATE 'ALTER TABLE reservations ADD (created_at DATE DEFAULT SYSDATE)';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -1430 THEN RAISE; END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'ALTER TABLE reservations ADD CONSTRAINT chk_res_status CHECK (status IN (''BOOKED'', ''CHECKED_OUT'', ''CANCELLED''))';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLCODE != -2264 THEN RAISE; END IF;
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'ALTER TABLE rooms ADD (max_guests NUMBER(2) DEFAULT 2)';
 EXCEPTION
     WHEN OTHERS THEN
         IF SQLCODE != -1430 THEN RAISE; END IF;

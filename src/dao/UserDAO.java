@@ -1,12 +1,15 @@
 package dao;
 
 import model.User;
+import model.CustomerSummary;
 import util.PasswordUtil;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserDAO {
     public void ensureDefaultAdmin() {
@@ -61,7 +64,7 @@ public class UserDAO {
             pstmt.setString(3, salt);
             pstmt.setString(4, fullName);
             pstmt.setString(5, phone);
-            pstmt.setString(6, email == null ? "" : email);
+            if (email == null || email.isBlank()) pstmt.setNull(6, java.sql.Types.VARCHAR); else pstmt.setString(6, email);
             pstmt.executeUpdate();
             try (ResultSet keys = pstmt.getGeneratedKeys()) {
                 if (keys.next()) return new User(keys.getLong(1), username, fullName, phone, email, "CUSTOMER");
@@ -95,6 +98,22 @@ public class UserDAO {
                 return save.executeUpdate() == 1;
             }
         } catch (SQLException e) { return false; }
+    }
+
+    public List<CustomerSummary> getCustomers(String search) {
+        List<CustomerSummary> result = new ArrayList<>();
+        String pattern = "%" + (search == null ? "" : search.trim().toLowerCase()) + "%";
+        String sql = "SELECT u.user_id, u.full_name, u.username, u.phone, u.email, u.created_at, COUNT(r.reservation_id) bookings " +
+            "FROM app_users u LEFT JOIN reservations r ON r.user_id = u.user_id WHERE u.role = 'CUSTOMER' " +
+            "AND (LOWER(u.full_name) LIKE ? OR LOWER(u.username) LIKE ? OR u.phone LIKE ?) " +
+            "GROUP BY u.user_id, u.full_name, u.username, u.phone, u.email, u.created_at ORDER BY u.full_name";
+        try (Connection conn = DatabaseHelper.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, pattern); pstmt.setString(2, pattern); pstmt.setString(3, pattern);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) result.add(new CustomerSummary(rs.getLong("user_id"), rs.getString("full_name"), rs.getString("username"), rs.getString("phone"), rs.getString("email"), rs.getDate("created_at"), rs.getInt("bookings")));
+            }
+        } catch (SQLException e) { System.err.println("Could not load customers: " + e.getMessage()); }
+        return result;
     }
 
     private User readUser(ResultSet rs) throws SQLException {

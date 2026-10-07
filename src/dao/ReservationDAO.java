@@ -86,8 +86,12 @@ public class ReservationDAO {
     // ---------- Read ----------
 
     public List<BookedRoom> getCurrentBookings() {
-        if (Session.isLoggedIn() && !Session.isAdmin()) return getBookingHistoryForUser(Session.current().getId());
+        if (Session.isLoggedIn() && !Session.isAdmin()) return getCurrentBookingsForUser(Session.current().getId());
         return query(SELECT_RESERVATIONS + "WHERE res.status = 'BOOKED' ORDER BY res.check_in_date, r.room_number");
+    }
+
+    public List<BookedRoom> getCurrentBookingsForUser(long userId) {
+        return query(SELECT_RESERVATIONS + "WHERE res.user_id = ? AND res.status = 'BOOKED' ORDER BY res.check_in_date, r.room_number", String.valueOf(userId));
     }
 
     public List<BookedRoom> getBookingHistory() {
@@ -137,6 +141,18 @@ public class ReservationDAO {
 
     public int countActiveReservations() {
         return count("SELECT COUNT(*) FROM reservations WHERE status = 'BOOKED'");
+    }
+
+    public int countArrivalsToday() {
+        return count("SELECT COUNT(*) FROM reservations WHERE status = 'BOOKED' AND check_in_date = TRUNC(SYSDATE)");
+    }
+
+    public double revenueThisMonth() {
+        String sql = "SELECT NVL(SUM(total_rent), 0) FROM reservations WHERE status IN ('BOOKED', 'CHECKED_OUT') " +
+                     "AND check_in_date >= TRUNC(SYSDATE, 'MM') AND check_in_date < ADD_MONTHS(TRUNC(SYSDATE, 'MM'), 1)";
+        try (Connection conn = DatabaseHelper.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql); ResultSet rs = pstmt.executeQuery()) {
+            rs.next(); return rs.getDouble(1);
+        } catch (SQLException e) { System.err.println("Error calculating monthly revenue: " + e.getMessage()); return 0; }
     }
 
     // ---------- Update ----------
@@ -204,21 +220,26 @@ public class ReservationDAO {
                      "AND check_in_date > TRUNC(SYSDATE)";
         try (Connection conn = DatabaseHelper.getConnection()) {
             conn.setAutoCommit(false);
-            double price = lockRoomAndGetPrice(conn, roomNumber);
-            if (!isRoomFree(conn, roomNumber, checkIn, checkOut, reservationId)) { conn.rollback(); return false; }
-            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-                long nights = Billing.nights(checkIn, checkOut);
-                pstmt.setString(1, customerName); pstmt.setString(2, contact);
-                pstmt.setDate(3, Date.valueOf(checkIn)); pstmt.setDate(4, Date.valueOf(checkOut));
-                pstmt.setDouble(5, Billing.subtotal(price, nights)); pstmt.setDouble(6, Billing.total(price, nights));
-                pstmt.setLong(7, reservationId); pstmt.setLong(8, userId);
-                if (pstmt.executeUpdate() != 1) { conn.rollback(); return false; }
+            try {
+                double price = lockRoomAndGetPrice(conn, roomNumber);
+                if (!isRoomFree(conn, roomNumber, checkIn, checkOut, reservationId)) { conn.rollback(); return false; }
+                try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                    long nights = Billing.nights(checkIn, checkOut);
+                    pstmt.setString(1, customerName); pstmt.setString(2, contact);
+                    pstmt.setDate(3, Date.valueOf(checkIn)); pstmt.setDate(4, Date.valueOf(checkOut));
+                    pstmt.setDouble(5, Billing.subtotal(price, nights)); pstmt.setDouble(6, Billing.total(price, nights));
+                    pstmt.setLong(7, reservationId); pstmt.setLong(8, userId);
+                    if (pstmt.executeUpdate() != 1) { conn.rollback(); return false; }
+                }
+                try (PreparedStatement link = conn.prepareStatement("UPDATE reserved_rooms SET room_number = ? WHERE reservation_id = ?")) {
+                    link.setString(1, roomNumber); link.setLong(2, reservationId); link.executeUpdate();
+                }
+                conn.commit(); return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
             }
-            try (PreparedStatement link = conn.prepareStatement("UPDATE reserved_rooms SET room_number = ? WHERE reservation_id = ?")) {
-                link.setString(1, roomNumber); link.setLong(2, reservationId); link.executeUpdate();
-            }
-            conn.commit(); return true;
-        } catch (SQLException e) { return false; }
+        } catch (SQLException e) { System.err.println("Error updating customer reservation: " + e.getMessage()); return false; }
     }
 
     // Cancelling keeps the row (status CANCELLED) so it still shows in history.
@@ -231,10 +252,18 @@ public class ReservationDAO {
     public boolean cancelReservationForUser(long reservationId, long userId) {
         String sql = "UPDATE reservations SET status = 'CANCELLED' WHERE reservation_id = ? AND user_id = ? " +
                      "AND status = 'BOOKED' AND check_in_date > TRUNC(SYSDATE)";
-        try (Connection conn = DatabaseHelper.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setLong(1, reservationId); pstmt.setLong(2, userId);
-            return pstmt.executeUpdate() == 1;
-        } catch (SQLException e) { return false; }
+        try (Connection conn = DatabaseHelper.getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setLong(1, reservationId); pstmt.setLong(2, userId);
+                boolean changed = pstmt.executeUpdate() == 1;
+                if (changed) conn.commit(); else conn.rollback();
+                return changed;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (SQLException e) { System.err.println("Error cancelling customer reservation: " + e.getMessage()); return false; }
     }
 
     public boolean checkOut(long reservationId) {
