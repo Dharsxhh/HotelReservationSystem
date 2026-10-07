@@ -1,5 +1,7 @@
 package gui;
 
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -7,6 +9,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.prefs.Preferences;
 
 public final class UITheme {
     public static final Color NAVY = new Color(15, 42, 68);
@@ -18,10 +21,17 @@ public final class UITheme {
     public static final Color MUTED = new Color(103, 116, 130);
     public static final Color ERROR = new Color(190, 60, 60);
     public static final Color WHITE = Color.WHITE;
+    private static boolean installed;
+    private static boolean darkMode;
 
     private UITheme() { }
 
     public static void install() {
+        if (!installed) {
+            darkMode = Preferences.userNodeForPackage(UITheme.class).getBoolean("darkMode", false);
+            if (darkMode) FlatDarkLaf.setup(); else FlatLightLaf.setup();
+            installed = true;
+        }
         UIManager.put("Panel.background", BACKGROUND);
         UIManager.put("OptionPane.background", WHITE);
         UIManager.put("OptionPane.messageFont", new Font("Segoe UI", Font.PLAIN, 14));
@@ -33,6 +43,21 @@ public final class UITheme {
         UIManager.put("TableHeader.font", new Font("Segoe UI", Font.BOLD, 13));
         UIManager.put("Spinner.font", new Font("Segoe UI", Font.PLAIN, 14));
         UIManager.put("ComboBox.font", new Font("Segoe UI", Font.PLAIN, 14));
+        UIManager.put("Button.arc", 12);
+        UIManager.put("Component.arc", 12);
+        UIManager.put("TextComponent.arc", 12);
+        UIManager.put("Component.focusWidth", 1);
+        UIManager.put("ScrollBar.showButtons", false);
+        UIManager.put("Table.showHorizontalLines", true);
+    }
+
+    public static boolean isDarkMode() { return darkMode; }
+
+    public static void toggleDarkMode(Window window) {
+        darkMode = !darkMode;
+        Preferences.userNodeForPackage(UITheme.class).putBoolean("darkMode", darkMode);
+        if (darkMode) FlatDarkLaf.setup(); else FlatLightLaf.setup();
+        SwingUtilities.updateComponentTreeUI(window);
     }
 
     public static JButton button(String text, Color background) {

@@ -4,7 +4,7 @@ A desktop hotel front-desk application built with **Java Swing** and an **Oracle
 
 ## 🚀 Features
 
-* **Staff login** with a dashboard showing total rooms, rooms free tonight, rooms occupied tonight and active reservations.
+* **Role-based login** with a default admin account and customer registration. Customers only see and manage their own reservations.
 * **Room availability by date:** pick check-in/check-out dates and a sharing type (single / double / triple). The table lists only the rooms free for those exact dates, so advance bookings work.
 * **Booking:** the form shows one guest-name field per bed. Dates are picked with date pickers, and the price (nights × rate + GST) updates live.
 * **Validation** with clear messages inside the form:
@@ -15,6 +15,7 @@ A desktop hotel front-desk application built with **Java Swing** and an **Oracle
   * at most 30 nights
   * room not already booked
 * **Search** while you type, by guest name, contact number, room number or reservation ID.
+* **Secure account storage:** customer passwords are salted and SHA-256 hashed; ownership is enforced in JDBC queries.
 * **Modify** an active booking: guest name, contact, dates or room. The price is recalculated.
 * **Cancel** an active booking. It stays in history marked *Cancelled*.
 * **Check out & bill:** checking a guest out shows a receipt (room charge, GST, total) that can be printed.
@@ -39,7 +40,8 @@ src/
            ReservationDAO
   util/    Billing (prices + GST),       – shared rules used by every screen
            Validator (input checks)
-  gui/     LoginFrame (start here), MainFrame (dashboard), BookingDialog,
+  gui/     LoginFrame (start here), MainFrame (admin dashboard), CustomerDashboard,
+           CustomerBookingsDialog, BookingDialog,
            EditReservationDialog, ReservationSearchDialog, ViewBookingsDialog,
            HistoryDialog, ReceiptDialog, ReservationTable, UITheme
 database_setup.sql      – creates the tables and 15 sample rooms
@@ -64,9 +66,9 @@ GST is 5% for rooms up to ₹7,500/night and 18% above that. The rates are set i
    ```
 2. **Create the tables.** Open `database_setup.sql` in SQL Developer and press **F5** (Run Script), connected as the user the app will use.
    > Re-running the script deletes existing reservations.
-3. **If upgrading an older database**, run `database_migration.sql` instead of dropping your existing data. It adds the reservation status column required by date availability, checkout, cancellation and history.
+3. **If upgrading an older database**, run `database_migration.sql` instead of dropping your existing data. It adds reservation status, user accounts and ownership columns without deleting reservations.
 4. **Set your database login.** Copy `db.properties.example` to `db.properties` in the project folder and fill in your URL, user and password. `db.properties` is git-ignored, so passwords never get committed.
-5. **Driver:** `lib/ojdbc17.jar` is already on the classpath (`.classpath`).
+5. **Drivers:** `lib/ojdbc17.jar` and `lib/flatlaf-3.5.4.jar` are already on the classpath (`.classpath`).
 6. **Run** `gui.LoginFrame`. Sample login: `admin` / `admin123`.
 
 ### Running in VS Code
@@ -74,8 +76,8 @@ Install the **Extension Pack for Java**, then use **File → Open Folder** on th
 
 ### Running from a terminal (Windows)
 ```bat
-javac -encoding UTF-8 -cp lib\ojdbc17.jar -d out src\model\*.java src\util\*.java src\dao\*.java src\gui\*.java
-java -cp "out;lib\ojdbc17.jar" gui.LoginFrame
+javac -encoding UTF-8 -cp "lib\ojdbc17.jar;lib\flatlaf-3.5.4.jar" -d out src\model\*.java src\util\*.java src\dao\*.java src\gui\*.java
+java -cp "out;lib\ojdbc17.jar;lib\flatlaf-3.5.4.jar" gui.LoginFrame
 ```
 On macOS/Linux, use `/` in the paths and `:` instead of `;` in the classpath.
 

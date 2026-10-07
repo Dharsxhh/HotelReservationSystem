@@ -5,6 +5,7 @@ import dao.ReservationDAO;
 import dao.RoomDAO;
 import model.Room;
 import util.Billing;
+import util.Session;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -85,12 +86,18 @@ public class MainFrame extends JFrame {
         JLabel user = new JLabel("Signed in as  " + loggedInUser);
         user.setForeground(new Color(215, 226, 237));
         user.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        JButton theme = UITheme.button(UITheme.isDarkMode() ? "Light mode" : "Dark mode", UITheme.NAVY_LIGHT);
+        theme.addActionListener(e -> {
+            UITheme.toggleDarkMode(this);
+            theme.setText(UITheme.isDarkMode() ? "Light mode" : "Dark mode");
+        });
         JButton logout = UITheme.button("Sign out", UITheme.NAVY_LIGHT);
         logout.addActionListener(e -> {
+            Session.logout();
             dispose();
             new LoginFrame().setVisible(true);
         });
-        userPanel.add(user);
+        userPanel.add(user); userPanel.add(theme);
         userPanel.add(logout);
 
         header.add(brand, BorderLayout.WEST);

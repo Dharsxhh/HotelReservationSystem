@@ -6,6 +6,7 @@ import util.Billing;
 // One reservation together with the room it is for.
 public class BookedRoom {
     private final long reservationId;
+    private final long userId;
     private final String roomNumber;
     private final String roomType;
     private final double roomPrice;
@@ -20,7 +21,14 @@ public class BookedRoom {
     public BookedRoom(long reservationId, String roomNumber, String roomType, double roomPrice,
                       String customerName, String contact, LocalDate checkIn, LocalDate checkOut,
                       double subtotal, double total, String status) {
+        this(reservationId, 0, roomNumber, roomType, roomPrice, customerName, contact, checkIn, checkOut, subtotal, total, status);
+    }
+
+    public BookedRoom(long reservationId, long userId, String roomNumber, String roomType, double roomPrice,
+                      String customerName, String contact, LocalDate checkIn, LocalDate checkOut,
+                      double subtotal, double total, String status) {
         this.reservationId = reservationId;
+        this.userId = userId;
         this.roomNumber = roomNumber;
         this.roomType = roomType;
         this.roomPrice = roomPrice;
@@ -34,6 +42,7 @@ public class BookedRoom {
     }
 
     public long getReservationId() { return reservationId; }
+    public long getUserId() { return userId; }
     public String getRoomNumber() { return roomNumber; }
     public String getRoomType() { return roomType; }
     public double getRoomPrice() { return roomPrice; }

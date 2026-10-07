@@ -23,6 +23,11 @@ public class BookingDialog extends JDialog {
     private boolean confirmed = false;
 
     public BookingDialog(JFrame parent, Room room, LocalDate checkIn, LocalDate checkOut) {
+        this(parent, room, checkIn, checkOut, "", "");
+    }
+
+    public BookingDialog(JFrame parent, Room room, LocalDate checkIn, LocalDate checkOut,
+                         String defaultName, String defaultPhone) {
         super(parent, "New Booking - Room " + room.getRoomNumber(), true);
         this.room = room;
         checkInSpinner = UITheme.dateSpinner(checkIn);
@@ -51,9 +56,11 @@ public class BookingDialog extends JDialog {
         nameFields = new JTextField[room.getMaxGuests()];
         for (int i = 0; i < nameFields.length; i++) {
             nameFields[i] = new JTextField(20);
+            if (i == 0) nameFields[i].setText(defaultName == null ? "" : defaultName);
             addRow(form, gbc, row++, i == 0 ? "Guest 1 name (required):" : "Guest " + (i + 1) + " name:", nameFields[i]);
         }
         addRow(form, gbc, row++, "Contact number (10 digits):", contactField);
+        contactField.setText(defaultPhone == null ? "" : defaultPhone);
         addRow(form, gbc, row++, "Check-in:", checkInSpinner);
         addRow(form, gbc, row++, "Check-out:", checkOutSpinner);
 

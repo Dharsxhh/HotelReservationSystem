@@ -32,3 +32,4 @@ db.properties
 
 # Keep the Oracle JDBC driver that the project needs
 !lib/ojdbc17.jar
+!lib/flatlaf-*.jar
