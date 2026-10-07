@@ -109,6 +109,10 @@ public class MainFrame extends JFrame {
         searchModifyButton.addActionListener(e -> {
             ReservationSearchDialog searchDialog = new ReservationSearchDialog(this);
             searchDialog.setVisible(true);
+            listModel.clear();
+            for (Room room : roomDAO.getAvailableRooms()) {
+                listModel.addElement(room);
+            }
         });
 
         // Add ALL THREE buttons to the bottom panel

@@ -42,10 +42,13 @@ public class ReservationSearchDialog extends JDialog {
 
         JButton modifyButton = new JButton("Modify Selected Reservation");
         modifyButton.addActionListener(e -> modifySelected());
+        JButton cancelReservationButton = new JButton("Cancel Selected Reservation");
+        cancelReservationButton.addActionListener(e -> cancelSelected());
         JButton closeButton = new JButton("Close");
         closeButton.addActionListener(e -> dispose());
         JPanel buttons = new JPanel();
         buttons.add(modifyButton);
+        buttons.add(cancelReservationButton);
         buttons.add(closeButton);
         add(buttons, BorderLayout.SOUTH);
 
@@ -90,5 +93,27 @@ public class ReservationSearchDialog extends JDialog {
                 updated ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
             if (updated) loadResults(searchField.getText());
         }
+    }
+
+    private void cancelSelected() {
+        int row = table.getSelectedRow();
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "Select a reservation first.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        BookedRoom selected = results.get(table.convertRowIndexToModel(row));
+        int answer = JOptionPane.showConfirmDialog(this,
+            "Cancel reservation #" + selected.getReservationId() + " for " + selected.getCustomerName() +
+            "?\nRoom " + selected.getRoomNumber() + " will become available.",
+            "Confirm Cancellation", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION) return;
+
+        boolean cancelled = dao.cancelReservation(selected.getReservationId());
+        JOptionPane.showMessageDialog(this,
+            cancelled ? "Reservation cancelled and room made available." : "Could not cancel the reservation.",
+            cancelled ? "Cancellation Complete" : "Database Error",
+            cancelled ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
+        if (cancelled) loadResults(searchField.getText());
     }
 }

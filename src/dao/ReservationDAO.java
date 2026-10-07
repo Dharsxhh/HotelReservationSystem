@@ -4,7 +4,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 
 public class ReservationDAO {
 
@@ -12,7 +11,7 @@ public class ReservationDAO {
         
         String insertReservationSQL = "INSERT INTO reservations (customer_name, contact_number, check_in_date, check_out_date, subtotal, total_rent) VALUES (?, ?, TO_DATE(?, 'YYYY-MM-DD'), TO_DATE(?, 'YYYY-MM-DD'), ?, ?)";
         String insertReservedRoomSQL = "INSERT INTO reserved_rooms (reservation_id, room_number) VALUES (?, ?)";
-        String updateRoomSQL = "UPDATE rooms SET is_available = 0 WHERE room_number = ?";
+        String updateRoomSQL = "UPDATE rooms SET is_available = 0 WHERE room_number = ? AND is_available = 1";
 
         Connection conn = null;
 
@@ -39,6 +38,9 @@ public class ReservationDAO {
                     }
                 }
             }
+            if (reservationId < 0) {
+                throw new SQLException("Could not create a reservation ID.");
+            }
 
             // 2. Link the room to this new reservation
             try (PreparedStatement pstmt2 = conn.prepareStatement(insertReservedRoomSQL)) {
@@ -50,7 +52,9 @@ public class ReservationDAO {
             // 3. Mark the room as booked
             try (PreparedStatement pstmt3 = conn.prepareStatement(updateRoomSQL)) {
                 pstmt3.setString(1, roomNumber);
-                pstmt3.executeUpdate();
+                if (pstmt3.executeUpdate() != 1) {
+                    throw new SQLException("Room " + roomNumber + " is no longer available.");
+                }
             }
 
             // If we made it here without errors, save it all!
@@ -194,6 +198,61 @@ public class ReservationDAO {
             System.err.println("Error updating reservation.");
             e.printStackTrace();
             return false;
+        }
+    }
+
+    // Cancels a reservation and makes all rooms attached to it available again.
+    public boolean cancelReservation(long reservationId) {
+        String findRoomsSQL = "SELECT room_number FROM reserved_rooms WHERE reservation_id = ?";
+        String freeRoomSQL = "UPDATE rooms SET is_available = 1 WHERE room_number = ?";
+        String deleteRoomsSQL = "DELETE FROM reserved_rooms WHERE reservation_id = ?";
+        String deleteReservationSQL = "DELETE FROM reservations WHERE reservation_id = ?";
+        Connection conn = null;
+
+        try {
+            conn = DatabaseHelper.getConnection();
+            conn.setAutoCommit(false);
+
+            try (PreparedStatement findRooms = conn.prepareStatement(findRoomsSQL);
+                 PreparedStatement freeRoom = conn.prepareStatement(freeRoomSQL)) {
+                findRooms.setLong(1, reservationId);
+                try (ResultSet rs = findRooms.executeQuery()) {
+                    while (rs.next()) {
+                        freeRoom.setString(1, rs.getString("room_number"));
+                        freeRoom.addBatch();
+                    }
+                }
+                freeRoom.executeBatch();
+            }
+
+            try (PreparedStatement deleteRooms = conn.prepareStatement(deleteRoomsSQL);
+                 PreparedStatement deleteReservation = conn.prepareStatement(deleteReservationSQL)) {
+                deleteRooms.setLong(1, reservationId);
+                deleteRooms.executeUpdate();
+                deleteReservation.setLong(1, reservationId);
+                boolean deleted = deleteReservation.executeUpdate() == 1;
+                if (!deleted) {
+                    conn.rollback();
+                    return false;
+                }
+            }
+
+            conn.commit();
+            return true;
+        } catch (SQLException e) {
+            System.err.println("Error cancelling reservation. Rolling back.");
+            e.printStackTrace();
+            if (conn != null) {
+                try { conn.rollback(); } catch (SQLException rollbackError) { rollbackError.printStackTrace(); }
+            }
+            return false;
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException closeError) { closeError.printStackTrace(); }
+            }
         }
     }
 

@@ -102,10 +102,7 @@ public class BookingDialog extends JDialog {
         // 3. Bottom Buttons
         JPanel bottomPanel = new JPanel();
         JButton confirmButton = new JButton("Confirm Booking");
-        confirmButton.addActionListener(e -> {
-            isConfirmed = true; 
-            dispose(); 
-        });
+        confirmButton.addActionListener(e -> confirmBooking());
 
         JButton cancelButton = new JButton("Cancel");
         cancelButton.addActionListener(e -> {
@@ -118,7 +115,7 @@ public class BookingDialog extends JDialog {
         add(bottomPanel, BorderLayout.SOUTH);
     }
     
-    private void calculatePrice() {
+    private boolean calculatePrice() {
         try {
             LocalDate inDate = LocalDate.parse(checkInField.getText());
             LocalDate outDate = LocalDate.parse(checkOutField.getText());
@@ -128,11 +125,28 @@ public class BookingDialog extends JDialog {
                 nightsLabel.setText("  Nights: " + nights + "  |");
                 calculatedTotal = nights * selectedRoom.getPrice();
                 totalLabel.setText("  Total: ₹" + calculatedTotal);
+                return true;
             } else {
                 JOptionPane.showMessageDialog(this, "Check-out date must be after Check-in date.");
             }
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Please enter dates in exact YYYY-MM-DD format.");
+        }
+        return false;
+    }
+
+    private void confirmBooking() {
+        if (getCustomerName().equals("Unknown Guest")) {
+            JOptionPane.showMessageDialog(this, "Enter at least one guest name.", "Missing Guest Name", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (!getContactNumber().matches("\\d{7,15}")) {
+            JOptionPane.showMessageDialog(this, "Contact number must contain 7 to 15 digits.", "Invalid Contact", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (calculatePrice()) {
+            isConfirmed = true;
+            dispose();
         }
     }
     
@@ -158,4 +172,3 @@ public class BookingDialog extends JDialog {
     public String getCheckOut() { return checkOutField.getText(); }
     public double getTotalPrice() { return calculatedTotal; }
 }
-   
