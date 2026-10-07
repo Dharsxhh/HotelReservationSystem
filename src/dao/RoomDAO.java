@@ -59,4 +59,32 @@ public class RoomDAO {
         return new Room(rs.getString("room_number"), rs.getString("room_type"),
                         rs.getDouble("price"), rs.getInt("max_guests"));
     }
+
+    public boolean addRoom(String number, String type, double price, int maxGuests) {
+        String sql = "INSERT INTO rooms (room_number, room_type, price, max_guests) VALUES (?, ?, ?, ?)";
+        try (Connection conn = DatabaseHelper.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, number); pstmt.setString(2, type); pstmt.setDouble(3, price); pstmt.setInt(4, maxGuests); pstmt.executeUpdate(); return true;
+        } catch (SQLException e) { return false; }
+    }
+
+    public boolean updateRoom(String number, String type, double price, int maxGuests) {
+        String sql = "UPDATE rooms SET room_type = ?, price = ?, max_guests = ? WHERE room_number = ?";
+        try (Connection conn = DatabaseHelper.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, type); pstmt.setDouble(2, price); pstmt.setInt(3, maxGuests); pstmt.setString(4, number); return pstmt.executeUpdate() == 1;
+        } catch (SQLException e) { return false; }
+    }
+
+    public boolean hasReservations(String number) {
+        String sql = "SELECT COUNT(*) FROM reserved_rooms WHERE room_number = ?";
+        try (Connection conn = DatabaseHelper.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, number); try (ResultSet rs = pstmt.executeQuery()) { rs.next(); return rs.getInt(1) > 0; }
+        } catch (SQLException e) { return true; }
+    }
+
+    public boolean deleteRoom(String number) {
+        if (hasReservations(number)) return false;
+        try (Connection conn = DatabaseHelper.getConnection(); PreparedStatement pstmt = conn.prepareStatement("DELETE FROM rooms WHERE room_number = ?")) {
+            pstmt.setString(1, number); return pstmt.executeUpdate() == 1;
+        } catch (SQLException e) { return false; }
+    }
 }
