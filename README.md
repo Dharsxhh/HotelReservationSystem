@@ -64,9 +64,10 @@ GST is 5% for rooms up to ₹7,500/night and 18% above that. The rates are set i
    ```
 2. **Create the tables.** Open `database_setup.sql` in SQL Developer and press **F5** (Run Script), connected as the user the app will use.
    > Re-running the script deletes existing reservations.
-3. **Set your database login.** Copy `db.properties.example` to `db.properties` in the project folder and fill in your URL, user and password. `db.properties` is git-ignored, so passwords never get committed.
-4. **Driver:** `lib/ojdbc17.jar` is already on the classpath (`.classpath`).
-5. **Run** `gui.LoginFrame`. Sample login: `admin` / `admin123`.
+3. **If upgrading an older database**, run `database_migration.sql` instead of dropping your existing data. It adds the reservation status column required by date availability, checkout, cancellation and history.
+4. **Set your database login.** Copy `db.properties.example` to `db.properties` in the project folder and fill in your URL, user and password. `db.properties` is git-ignored, so passwords never get committed.
+5. **Driver:** `lib/ojdbc17.jar` is already on the classpath (`.classpath`).
+6. **Run** `gui.LoginFrame`. Sample login: `admin` / `admin123`.
 
 ### Running in VS Code
 Install the **Extension Pack for Java**, then use **File → Open Folder** on the project. Open `src/gui/LoginFrame.java` and click **Run**. Run from the project folder so `db.properties` is found.
