@@ -23,6 +23,8 @@ public class MainFrame extends JFrame {
     private final JLabel availableRoomsValue = statValue();
     private final JLabel occupiedRoomsValue = statValue();
     private final JLabel reservationValue = statValue();
+    private final JLabel arrivalsValue = statValue();
+    private final JLabel revenueValue = statValue();
     private final JLabel statusLabel = new JLabel("Ready");
     private final JLabel databaseLabel = new JLabel();
     private final String loggedInUser;
@@ -55,7 +57,7 @@ public class MainFrame extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
-        getContentPane().setBackground(UITheme.BACKGROUND);
+        getContentPane().setBackground(UITheme.background());
 
         add(createHeader(), BorderLayout.NORTH);
         add(createDashboard(), BorderLayout.CENTER);
@@ -75,7 +77,7 @@ public class MainFrame extends JFrame {
         logo.setForeground(UITheme.GOLD);
         logo.setFont(new Font("Segoe UI", Font.BOLD, 16));
         JLabel title = new JLabel("Hotel Operations Dashboard");
-        title.setForeground(UITheme.WHITE);
+        title.setForeground(Color.WHITE);
         title.setFont(new Font("Segoe UI", Font.BOLD, 23));
         brand.add(logo);
         brand.add(Box.createVerticalStrut(3));
@@ -107,16 +109,16 @@ public class MainFrame extends JFrame {
 
     private JPanel createDashboard() {
         JPanel root = new JPanel(new BorderLayout(18, 18));
-        root.setBackground(UITheme.BACKGROUND);
+        root.setBackground(UITheme.background());
         root.setBorder(new EmptyBorder(22, 28, 18, 28));
 
         JPanel top = new JPanel(new BorderLayout(0, 15));
         top.setOpaque(false);
         JLabel welcome = new JLabel("Good day, " + loggedInUser);
-        welcome.setForeground(UITheme.TEXT);
+        welcome.setForeground(UITheme.text());
         welcome.setFont(new Font("Segoe UI", Font.BOLD, 26));
         JLabel subtitle = new JLabel("Here is your property snapshot for today.");
-        subtitle.setForeground(UITheme.MUTED);
+        subtitle.setForeground(UITheme.muted());
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         JPanel welcomeText = new JPanel();
         welcomeText.setOpaque(false);
@@ -133,23 +135,25 @@ public class MainFrame extends JFrame {
     }
 
     private JPanel createStatCards() {
-        JPanel cards = new JPanel(new GridLayout(1, 4, 12, 0));
+        JPanel cards = new JPanel(new GridLayout(1, 6, 12, 0));
         cards.setOpaque(false);
         cards.add(statCard("Total rooms", totalRoomsValue, UITheme.NAVY));
         cards.add(statCard("Free tonight", availableRoomsValue, UITheme.TEAL));
         cards.add(statCard("Occupied tonight", occupiedRoomsValue, new Color(190, 123, 31)));
         cards.add(statCard("Active reservations", reservationValue, new Color(105, 76, 150)));
+        cards.add(statCard("Arrivals today", arrivalsValue, UITheme.GOLD));
+        cards.add(statCard("Revenue this month", revenueValue, UITheme.TEAL));
         return cards;
     }
 
     private JPanel statCard(String label, JLabel value, Color accent) {
         JPanel card = new JPanel(new BorderLayout(8, 3));
-        card.setBackground(UITheme.WHITE);
+        card.setBackground(UITheme.card());
         card.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(0, 4, 0, 0, accent),
             new EmptyBorder(12, 14, 12, 14)));
         JLabel name = new JLabel(label.toUpperCase());
-        name.setForeground(UITheme.MUTED);
+        name.setForeground(UITheme.muted());
         name.setFont(new Font("Segoe UI", Font.BOLD, 11));
         card.add(name, BorderLayout.NORTH);
         card.add(value, BorderLayout.CENTER);
@@ -190,7 +194,7 @@ public class MainFrame extends JFrame {
         roomTable.setAutoCreateRowSorter(true);
         roomTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         roomTable.setSelectionBackground(new Color(218, 239, 237));
-        roomTable.setSelectionForeground(UITheme.TEXT);
+        roomTable.setSelectionForeground(UITheme.text());
         // Double-click a room to book it.
         roomTable.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
@@ -199,7 +203,7 @@ public class MainFrame extends JFrame {
             }
         });
         JScrollPane scroll = new JScrollPane(roomTable);
-        scroll.getViewport().setBackground(UITheme.WHITE);
+        scroll.getViewport().setBackground(UITheme.card());
         panel.add(scroll, BorderLayout.CENTER);
 
         checkInSpinner.addChangeListener(e -> loadRooms());
@@ -226,8 +230,12 @@ public class MainFrame extends JFrame {
         history.addActionListener(e -> new HistoryDialog(this).setVisible(true));
         JButton refresh = actionButton("Refresh dashboard", UITheme.NAVY_LIGHT);
         refresh.addActionListener(e -> refreshDashboard());
+        JButton customers = actionButton("Customers", new Color(105, 76, 150));
+        customers.addActionListener(e -> new CustomersDialog(this).setVisible(true));
+        JButton rooms = actionButton("Manage rooms", UITheme.GOLD);
+        rooms.addActionListener(e -> { new RoomsDialog(this).setVisible(true); refreshDashboard(); });
 
-        for (JButton button : new JButton[]{book, current, search, history, refresh}) {
+        for (JButton button : new JButton[]{book, current, search, history, customers, rooms, refresh}) {
             actions.add(button);
             actions.add(Box.createVerticalStrut(10));
         }
@@ -244,9 +252,9 @@ public class MainFrame extends JFrame {
 
     private JPanel createStatusBar() {
         JPanel status = new JPanel(new BorderLayout());
-        status.setBackground(UITheme.WHITE);
+        status.setBackground(UITheme.card());
         status.setBorder(new EmptyBorder(7, 28, 7, 28));
-        statusLabel.setForeground(UITheme.MUTED);
+        statusLabel.setForeground(UITheme.muted());
         statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         databaseLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
         status.add(statusLabel, BorderLayout.WEST);
@@ -314,7 +322,7 @@ public class MainFrame extends JFrame {
         }
 
         long nights = Billing.nights(checkIn, checkOut);
-        roomsHint.setForeground(UITheme.MUTED);
+        roomsHint.setForeground(UITheme.muted());
         roomsHint.setText(shownRooms.size() + " room(s) free for " + nights + (nights == 1 ? " night" : " nights")
             + "  •  select one and click Book (or double-click)");
     }
@@ -330,20 +338,22 @@ public class MainFrame extends JFrame {
         availableRoomsValue.setText(String.valueOf(Math.max(0, totalRooms - occupied)));
         occupiedRoomsValue.setText(String.valueOf(occupied));
         reservationValue.setText(String.valueOf(reservationDAO.countActiveReservations()));
+        arrivalsValue.setText(String.valueOf(reservationDAO.countArrivalsToday()));
+        revenueValue.setText(Billing.money(reservationDAO.revenueThisMonth()));
         loadRooms();
         statusLabel.setText("Dashboard refreshed • " + shownRooms.size() + " rooms free for the selected dates");
     }
 
     private JPanel whitePanel(LayoutManager layout) {
         JPanel panel = new JPanel(layout);
-        panel.setBackground(UITheme.WHITE);
+        panel.setBackground(UITheme.card());
         panel.setBorder(new EmptyBorder(18, 18, 18, 18));
         return panel;
     }
 
     private static JLabel statValue() {
         JLabel label = new JLabel("0");
-        label.setForeground(UITheme.TEXT);
+        label.setForeground(UITheme.text());
         label.setFont(new Font("Segoe UI", Font.BOLD, 25));
         return label;
     }
