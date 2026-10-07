@@ -11,7 +11,7 @@ public class DatabaseHelper {
     // Oracle database connection details
     private static final String URL = "jdbc:oracle:thin:@localhost:1521:XE"; 
     private static final String USER = "SYSTEM";
-    private static final String PASSWORD = "nehaa24"; 
+    private static final String PASSWORD = "sarva"; 
 
     // Static block runs once to load the driver into memory
     static {

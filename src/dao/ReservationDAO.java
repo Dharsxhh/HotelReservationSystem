@@ -131,6 +131,72 @@ public class ReservationDAO {
             return false;
         }
     }
+
+    // Searches current and past reservations by ID, room, guest, or contact number.
+    public java.util.List<model.BookedRoom> searchReservations(String searchText) {
+        java.util.List<model.BookedRoom> results = new java.util.ArrayList<>();
+        String sql = "SELECT res.reservation_id, r.room_number, r.room_type, r.price, " +
+                     "res.customer_name, res.contact_number, res.check_in_date, res.check_out_date " +
+                     "FROM reservations res " +
+                     "JOIN reserved_rooms rr ON res.reservation_id = rr.reservation_id " +
+                     "JOIN rooms r ON rr.room_number = r.room_number " +
+                     "WHERE LOWER(res.customer_name) LIKE ? " +
+                     "OR LOWER(res.contact_number) LIKE ? " +
+                     "OR LOWER(r.room_number) LIKE ? " +
+                     "OR TO_CHAR(res.reservation_id) LIKE ? " +
+                     "ORDER BY res.reservation_id DESC";
+
+        String searchPattern = "%" + (searchText == null ? "" : searchText.trim().toLowerCase()) + "%";
+        try (Connection conn = DatabaseHelper.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            for (int i = 1; i <= 4; i++) {
+                pstmt.setString(i, searchPattern);
+            }
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new model.BookedRoom(
+                        rs.getLong("reservation_id"),
+                        rs.getString("room_number"),
+                        rs.getString("room_type"),
+                        rs.getString("customer_name"),
+                        rs.getString("contact_number"),
+                        rs.getDate("check_in_date"),
+                        rs.getDate("check_out_date"),
+                        rs.getDouble("price")
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error searching reservations.");
+            e.printStackTrace();
+        }
+        return results;
+    }
+
+    // Updates the editable details while keeping the reservation and room link unchanged.
+    public boolean updateReservation(long reservationId, String customerName, String contact,
+                                     String checkIn, String checkOut, double total) {
+        String sql = "UPDATE reservations SET customer_name = ?, contact_number = ?, " +
+                     "check_in_date = TO_DATE(?, 'YYYY-MM-DD'), " +
+                     "check_out_date = TO_DATE(?, 'YYYY-MM-DD'), subtotal = ?, total_rent = ? " +
+                     "WHERE reservation_id = ?";
+        try (Connection conn = DatabaseHelper.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, customerName);
+            pstmt.setString(2, contact);
+            pstmt.setString(3, checkIn);
+            pstmt.setString(4, checkOut);
+            pstmt.setDouble(5, total);
+            pstmt.setDouble(6, total);
+            pstmt.setLong(7, reservationId);
+            return pstmt.executeUpdate() == 1;
+        } catch (SQLException e) {
+            System.err.println("Error updating reservation.");
+            e.printStackTrace();
+            return false;
+        }
+    }
+
  // NEW METHOD: Fetches EVERY booking ever made (Current and Past)
     public java.util.List<model.BookedRoom> getBookingHistory() {
         java.util.List<model.BookedRoom> history = new java.util.ArrayList<>();

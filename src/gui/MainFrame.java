@@ -16,7 +16,7 @@ public class MainFrame extends JFrame {
         roomDAO = new RoomDAO();
         
         setTitle("Hotel Reservation System - Front Desk");
-        setSize(600, 400);
+        setSize(700, 450);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null); 
         setLayout(new BorderLayout(10, 10)); 
@@ -103,6 +103,14 @@ public class MainFrame extends JFrame {
             historyDialog.setVisible(true);
         });
 
+        JButton searchModifyButton = new JButton("Search / Modify Reservations");
+        searchModifyButton.setFont(new Font("Arial", Font.BOLD, 14));
+        searchModifyButton.setFocusPainted(false);
+        searchModifyButton.addActionListener(e -> {
+            ReservationSearchDialog searchDialog = new ReservationSearchDialog(this);
+            searchDialog.setVisible(true);
+        });
+
         // Add ALL THREE buttons to the bottom panel
         JPanel bottomPanel = new JPanel();
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0));
@@ -111,6 +119,8 @@ public class MainFrame extends JFrame {
         bottomPanel.add(viewBookingsButton);
         bottomPanel.add(Box.createHorizontalStrut(15));
         bottomPanel.add(historyButton);
+        bottomPanel.add(Box.createHorizontalStrut(15));
+        bottomPanel.add(searchModifyButton);
         add(bottomPanel, BorderLayout.SOUTH);
     }
 
