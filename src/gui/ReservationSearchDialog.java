@@ -1,119 +1,117 @@
 package gui;
 
-import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import java.awt.*;
-import java.util.List;
 import dao.ReservationDAO;
 import model.BookedRoom;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import java.awt.*;
 
 public class ReservationSearchDialog extends JDialog {
     private static final long serialVersionUID = 1L;
     private final ReservationDAO dao = new ReservationDAO();
-    private final JTextField searchField = new JTextField(25);
-    private final DefaultTableModel tableModel;
-    private final JTable table;
-    private List<BookedRoom> results = new java.util.ArrayList<>();
+    private final JTextField searchField = new JTextField(28);
+    private final ReservationTable table = new ReservationTable();
+    private final JLabel resultLabel = new JLabel(" ");
 
     public ReservationSearchDialog(JFrame parent) {
-        super(parent, "Search and Modify Reservations", true);
-        setSize(1000, 480);
+        super(parent, "Search, Modify or Cancel Reservations", true);
+        setSize(1050, 520);
         setLocationRelativeTo(parent);
         setLayout(new BorderLayout(10, 10));
 
-        JPanel searchPanel = new JPanel();
-        searchPanel.add(new JLabel("Search guest, contact, room, or reservation ID:"));
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        searchPanel.setBorder(new EmptyBorder(14, 12, 0, 12));
+        searchPanel.add(new JLabel("Search by guest name, contact, room or reservation ID:"));
         searchPanel.add(searchField);
-        JButton searchButton = new JButton("Search");
-        searchPanel.add(searchButton);
-        JButton showAllButton = new JButton("Show All");
-        searchPanel.add(showAllButton);
+        resultLabel.setForeground(UITheme.MUTED);
+        searchPanel.add(resultLabel);
         add(searchPanel, BorderLayout.NORTH);
 
-        String[] columns = {"Reservation ID", "Room", "Type", "Guest Name(s)", "Contact", "Check-In", "Check-Out"};
-        tableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) { return false; }
-        };
-        table = new JTable(tableModel);
-        table.setRowHeight(25);
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(new EmptyBorder(0, 12, 0, 12));
+        add(scroll, BorderLayout.CENTER);
 
-        JButton modifyButton = new JButton("Modify Selected Reservation");
+        JButton modifyButton = UITheme.button("Modify Selected", UITheme.TEAL);
         modifyButton.addActionListener(e -> modifySelected());
-        JButton cancelReservationButton = new JButton("Cancel Selected Reservation");
-        cancelReservationButton.addActionListener(e -> cancelSelected());
-        JButton closeButton = new JButton("Close");
+        JButton cancelButton = UITheme.button("Cancel Selected Reservation", UITheme.ERROR);
+        cancelButton.addActionListener(e -> cancelSelected());
+        JButton closeButton = UITheme.button("Close", UITheme.NAVY_LIGHT);
         closeButton.addActionListener(e -> dispose());
         JPanel buttons = new JPanel();
+        buttons.setBorder(new EmptyBorder(0, 0, 12, 0));
         buttons.add(modifyButton);
-        buttons.add(cancelReservationButton);
+        buttons.add(cancelButton);
         buttons.add(closeButton);
         add(buttons, BorderLayout.SOUTH);
 
-        searchButton.addActionListener(e -> loadResults(searchField.getText()));
-        showAllButton.addActionListener(e -> {
-            searchField.setText("");
-            loadResults("");
+        // Results update while you type.
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { loadResults(); }
+            public void removeUpdate(DocumentEvent e) { loadResults(); }
+            public void changedUpdate(DocumentEvent e) { loadResults(); }
         });
-        searchField.addActionListener(e -> loadResults(searchField.getText()));
-        loadResults("");
+        loadResults();
     }
 
-    private void loadResults(String searchText) {
-        results = dao.searchReservations(searchText);
-        tableModel.setRowCount(0);
-        for (BookedRoom reservation : results) {
-            tableModel.addRow(new Object[]{
-                reservation.getReservationId(), reservation.getRoomNumber(), reservation.getRoomType(),
-                reservation.getCustomerName(), reservation.getContact(),
-                reservation.getCheckIn(), reservation.getCheckOut()
-            });
+    private void loadResults() {
+        java.util.List<BookedRoom> results = dao.searchReservations(searchField.getText());
+        table.setReservations(results);
+        resultLabel.setText(results.size() + (results.size() == 1 ? " result" : " results"));
+    }
+
+    // Returns the selected active booking, or null after telling the user why not.
+    private BookedRoom selectedActiveBooking(String action) {
+        BookedRoom selected = table.getSelectedReservation();
+        if (selected == null) {
+            JOptionPane.showMessageDialog(this, "Select a reservation first.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return null;
         }
+        if (!selected.isActive()) {
+            JOptionPane.showMessageDialog(this, "Reservation #" + selected.getReservationId() + " is already "
+                + selected.getStatusLabel().toLowerCase() + ", so it can't be " + action + ".",
+                "Not Allowed", JOptionPane.WARNING_MESSAGE);
+            return null;
+        }
+        return selected;
     }
 
     private void modifySelected() {
-        int row = table.getSelectedRow();
-        if (row < 0) {
-            JOptionPane.showMessageDialog(this, "Select a reservation first.", "No Selection", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
+        BookedRoom selected = selectedActiveBooking("modified");
+        if (selected == null) return;
 
-        BookedRoom selected = results.get(table.convertRowIndexToModel(row));
         EditReservationDialog editor = new EditReservationDialog(this, selected);
         editor.setVisible(true);
-        if (editor.isSaved()) {
-            boolean updated = dao.updateReservation(
-                selected.getReservationId(), editor.getCustomerName(), editor.getContactNumber(),
-                editor.getCheckIn(), editor.getCheckOut(), editor.getTotal());
-            JOptionPane.showMessageDialog(this,
-                updated ? "Reservation updated successfully." : "Could not update the reservation.",
-                updated ? "Success" : "Database Error",
-                updated ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
-            if (updated) loadResults(searchField.getText());
+        if (!editor.isSaved()) return;
+
+        boolean updated = dao.updateReservation(selected.getReservationId(), editor.getCustomerName(),
+            editor.getContactNumber(), editor.getCheckIn(), editor.getCheckOut(), editor.getRoom().getRoomNumber());
+        if (updated) {
+            JOptionPane.showMessageDialog(this, "Reservation #" + selected.getReservationId() + " updated.");
+        } else {
+            JOptionPane.showMessageDialog(this, "Could not update the reservation. The room may have just been booked.",
+                "Not Saved", JOptionPane.ERROR_MESSAGE);
         }
+        loadResults();
     }
 
     private void cancelSelected() {
-        int row = table.getSelectedRow();
-        if (row < 0) {
-            JOptionPane.showMessageDialog(this, "Select a reservation first.", "No Selection", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
+        BookedRoom selected = selectedActiveBooking("cancelled");
+        if (selected == null) return;
 
-        BookedRoom selected = results.get(table.convertRowIndexToModel(row));
         int answer = JOptionPane.showConfirmDialog(this,
-            "Cancel reservation #" + selected.getReservationId() + " for " + selected.getCustomerName() +
-            "?\nRoom " + selected.getRoomNumber() + " will become available.",
+            "Cancel reservation #" + selected.getReservationId() + " for " + selected.getCustomerName() + "?\n"
+                + "Room " + selected.getRoomNumber() + " will become free for those dates.",
             "Confirm Cancellation", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (answer != JOptionPane.YES_OPTION) return;
 
-        boolean cancelled = dao.cancelReservation(selected.getReservationId());
-        JOptionPane.showMessageDialog(this,
-            cancelled ? "Reservation cancelled and room made available." : "Could not cancel the reservation.",
-            cancelled ? "Cancellation Complete" : "Database Error",
-            cancelled ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
-        if (cancelled) loadResults(searchField.getText());
+        if (dao.cancelReservation(selected.getReservationId())) {
+            JOptionPane.showMessageDialog(this, "Reservation #" + selected.getReservationId() + " cancelled.");
+        } else {
+            JOptionPane.showMessageDialog(this, "Could not cancel the reservation.", "Database Error", JOptionPane.ERROR_MESSAGE);
+        }
+        loadResults();
     }
 }

@@ -1,51 +1,66 @@
 package dao;
 
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.List;
+import java.util.Properties;
 import model.Room;
 
 public class DatabaseHelper {
-    
-    // Oracle database connection details
-    private static final String URL = "jdbc:oracle:thin:@localhost:1521:XE"; 
-    private static final String USER = "SYSTEM";
-    private static final String PASSWORD = "sarva"; 
 
-    // Static block runs once to load the driver into memory
+    // Connection details are read from db.properties in the project folder,
+    // so each teammate keeps their own password out of git.
+    // Copy db.properties.example to db.properties and fill in your details.
+    private static final Properties CONFIG = loadConfig();
+
     static {
         try {
             Class.forName("oracle.jdbc.OracleDriver");
         } catch (ClassNotFoundException e) {
-            System.err.println("Oracle JDBC Driver not found. Did you add it to the Classpath?");
-            e.printStackTrace();
+            System.err.println("Oracle JDBC Driver not found. Is lib/ojdbc17.jar on the classpath?");
         }
     }
 
-    // Method for other classes to grab a database connection
-    public static Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(URL, USER, PASSWORD);
+    private static Properties loadConfig() {
+        Properties config = new Properties();
+        config.setProperty("db.url", "jdbc:oracle:thin:@localhost:1521:XE");
+        config.setProperty("db.user", "SYSTEM");
+        config.setProperty("db.password", "");
+        try (FileInputStream in = new FileInputStream("db.properties")) {
+            config.load(in);
+        } catch (IOException e) {
+            System.err.println("db.properties not found - copy db.properties.example to db.properties and set your password.");
+        }
+        return config;
     }
-    
-    // Quick test to verify everything works
-    public static void main(String[] args) {
+
+    public static Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(
+            CONFIG.getProperty("db.url"),
+            CONFIG.getProperty("db.user"),
+            CONFIG.getProperty("db.password"));
+    }
+
+    // Used by the dashboard to show whether the database is reachable.
+    public static boolean canConnect() {
         try (Connection conn = getConnection()) {
-            if (conn != null) {
-                System.out.println("Successfully connected to the Oracle database!\n");
-                
-                // Test the RoomDAO
-                RoomDAO roomDAO = new RoomDAO();
-                List<Room> allRooms = roomDAO.getAllRooms();
-                
-                System.out.println("--- Hotel Rooms in Database ---");
-                for (Room room : allRooms) {
-                    System.out.println(room.toString());
-                }
-            }
+            return conn.isValid(2);
         } catch (SQLException e) {
-            System.err.println("Failed to connect. Check your password and ensure Oracle is running.");
-            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // Quick connection test: run this class on its own.
+    public static void main(String[] args) {
+        if (!canConnect()) {
+            System.err.println("Failed to connect. Check db.properties and make sure Oracle is running.");
+            return;
+        }
+        System.out.println("Successfully connected to the Oracle database!\n");
+        for (Room room : new RoomDAO().getAllRooms()) {
+            System.out.println(room);
         }
     }
 }

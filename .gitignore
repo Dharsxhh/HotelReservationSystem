@@ -22,3 +22,13 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# Eclipse / VS Code build output
+bin/
+out/
+
+# Local database password - copy db.properties.example to db.properties
+db.properties
+
+# Keep the Oracle JDBC driver that the project needs
+!lib/ojdbc17.jar

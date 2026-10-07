@@ -1,174 +1,135 @@
 package gui;
 
+import dao.ReservationDAO;
+import model.Room;
+import util.Billing;
+import util.Validator;
+
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
-import model.Room;
 
 public class BookingDialog extends JDialog {
-    
+
     private static final long serialVersionUID = 1L;
-    private JTextField[] nameFields; // Now an array to hold multiple name fields
-    private JTextField contactField, checkInField, checkOutField;
-    private JLabel nightsLabel, totalLabel;
-    private Room selectedRoom;
-    private boolean isConfirmed = false;
-    private double calculatedTotal = 0.0;
+    private final Room room;
+    private final JTextField[] nameFields;  // one field per guest the room can hold
+    private final JTextField contactField = new JTextField(20);
+    private final JSpinner checkInSpinner;
+    private final JSpinner checkOutSpinner;
+    private final JLabel priceLabel = new JLabel();
+    private final JLabel errorLabel = UITheme.errorLabel();
+    private boolean confirmed = false;
 
-    public BookingDialog(JFrame parent, Room room) {
-        super(parent, "New Booking - Room " + room.getRoomNumber(), true); 
-        this.selectedRoom = room;
-        
-        setSize(550, 550); // Made window slightly taller to fit more names
-        setLocationRelativeTo(parent);
-        setLayout(new BorderLayout(15, 15));
-        
-        // 1. Header
-        JPanel headerPanel = new JPanel();
-        headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 0, 5, 0));
-        JLabel headerLabel = new JLabel("Booking Details");
-        headerLabel.setFont(new Font("Arial", Font.BOLD, 22));
-        headerPanel.add(headerLabel);
-        add(headerPanel, BorderLayout.NORTH);
+    public BookingDialog(JFrame parent, Room room, LocalDate checkIn, LocalDate checkOut) {
+        super(parent, "New Booking - Room " + room.getRoomNumber(), true);
+        this.room = room;
+        checkInSpinner = UITheme.dateSpinner(checkIn);
+        checkOutSpinner = UITheme.dateSpinner(checkOut);
 
-        // 2. Main Form
-        JPanel formPanel = new JPanel(new GridBagLayout());
-        formPanel.setBorder(BorderFactory.createEmptyBorder(5, 25, 5, 25));
+        setLayout(new BorderLayout());
+
+        JLabel header = UITheme.title("Booking details");
+        header.setBorder(new EmptyBorder(16, 25, 0, 25));
+        add(header, BorderLayout.NORTH);
+
+        JPanel form = new JPanel(new GridBagLayout());
+        form.setBorder(new EmptyBorder(5, 25, 5, 25));
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.insets = new Insets(6, 6, 6, 6);
         gbc.weightx = 1.0;
+        int row = 0;
 
-        int currentRow = 0;
-
-        // Row: Room Details
-        gbc.gridx = 0; gbc.gridy = currentRow++; gbc.gridwidth = 2;
-        formPanel.add(new JLabel("Confirm Room: " + room.getRoomType() + " (Room " + room.getRoomNumber() + ") - ₹" + room.getPrice() + "/night"), gbc);
-
-        // DYNAMIC ROWS: Generate Name fields based on capacity
+        JLabel roomLabel = new JLabel(room.toString());
+        roomLabel.setForeground(UITheme.MUTED);
+        gbc.gridx = 0; gbc.gridy = row++; gbc.gridwidth = 2;
+        form.add(roomLabel, gbc);
         gbc.gridwidth = 1;
-        int capacity = room.getMaxGuests();
-        nameFields = new JTextField[capacity];
-        
-        for (int i = 0; i < capacity; i++) {
-            gbc.gridx = 0; gbc.gridy = currentRow;
-            formPanel.add(new JLabel("Guest " + (i + 1) + " Name:"), gbc);
-            
+
+        nameFields = new JTextField[room.getMaxGuests()];
+        for (int i = 0; i < nameFields.length; i++) {
             nameFields[i] = new JTextField(20);
-            gbc.gridx = 1; 
-            formPanel.add(nameFields[i], gbc);
-            currentRow++;
+            addRow(form, gbc, row++, i == 0 ? "Guest 1 name (required):" : "Guest " + (i + 1) + " name:", nameFields[i]);
         }
+        addRow(form, gbc, row++, "Contact number (10 digits):", contactField);
+        addRow(form, gbc, row++, "Check-in:", checkInSpinner);
+        addRow(form, gbc, row++, "Check-out:", checkOutSpinner);
 
-        // Row: Contact (Only one needed)
-        gbc.gridx = 0; gbc.gridy = currentRow;
-        formPanel.add(new JLabel("Primary Contact Number:"), gbc);
-        contactField = new JTextField(20);
-        gbc.gridx = 1; formPanel.add(contactField, gbc);
-        currentRow++;
+        priceLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        priceLabel.setForeground(UITheme.TEAL);
+        gbc.gridx = 0; gbc.gridy = row++; gbc.gridwidth = 2;
+        form.add(priceLabel, gbc);
+        gbc.gridy = row;
+        form.add(errorLabel, gbc);
+        add(form, BorderLayout.CENTER);
 
-        // Row: Check-in
-        gbc.gridx = 0; gbc.gridy = currentRow;
-        formPanel.add(new JLabel("Check-in (YYYY-MM-DD):"), gbc);
-        checkInField = new JTextField("2026-10-01"); 
-        gbc.gridx = 1; formPanel.add(checkInField, gbc);
-        currentRow++;
-
-        // Row: Check-out
-        gbc.gridx = 0; gbc.gridy = currentRow;
-        formPanel.add(new JLabel("Check-out (YYYY-MM-DD):"), gbc);
-        checkOutField = new JTextField("2026-10-05");
-        gbc.gridx = 1; formPanel.add(checkOutField, gbc);
-        currentRow++;
-        
-        // Row: Calculation Panel
-        JPanel calcPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton calcButton = new JButton("Calculate Total");
-        nightsLabel = new JLabel("  Nights: 0  |");
-        totalLabel = new JLabel("  Total: ₹0.00");
-        
-        calcButton.addActionListener(e -> calculatePrice());
-        
-        calcPanel.add(calcButton);
-        calcPanel.add(nightsLabel);
-        calcPanel.add(totalLabel);
-        
-        gbc.gridx = 0; gbc.gridy = currentRow; gbc.gridwidth = 2;
-        formPanel.add(calcPanel, gbc);
-
-        add(formPanel, BorderLayout.CENTER);
-
-        // 3. Bottom Buttons
-        JPanel bottomPanel = new JPanel();
-        JButton confirmButton = new JButton("Confirm Booking");
+        JButton confirmButton = UITheme.button("Confirm Booking", UITheme.TEAL);
         confirmButton.addActionListener(e -> confirmBooking());
+        JButton cancelButton = UITheme.button("Cancel", UITheme.NAVY_LIGHT);
+        cancelButton.addActionListener(e -> dispose());
+        JPanel buttons = new JPanel();
+        buttons.setBorder(new EmptyBorder(5, 0, 12, 0));
+        buttons.add(confirmButton);
+        buttons.add(cancelButton);
+        add(buttons, BorderLayout.SOUTH);
+        getRootPane().setDefaultButton(confirmButton);
 
-        JButton cancelButton = new JButton("Cancel");
-        cancelButton.addActionListener(e -> {
-            isConfirmed = false;
-            dispose();
-        });
-        
-        bottomPanel.add(confirmButton);
-        bottomPanel.add(cancelButton);
-        add(bottomPanel, BorderLayout.SOUTH);
+        // Price updates straight away whenever a date changes.
+        checkInSpinner.addChangeListener(e -> updatePrice());
+        checkOutSpinner.addChangeListener(e -> updatePrice());
+        updatePrice();
+        pack();   // size the window to fit the form (rooms for 3 guests get a taller form)
+        setLocationRelativeTo(parent);
     }
-    
-    private boolean calculatePrice() {
-        try {
-            LocalDate inDate = LocalDate.parse(checkInField.getText());
-            LocalDate outDate = LocalDate.parse(checkOutField.getText());
-            long nights = ChronoUnit.DAYS.between(inDate, outDate);
-            
-            if (nights > 0) {
-                nightsLabel.setText("  Nights: " + nights + "  |");
-                calculatedTotal = nights * selectedRoom.getPrice();
-                totalLabel.setText("  Total: ₹" + calculatedTotal);
-                return true;
-            } else {
-                JOptionPane.showMessageDialog(this, "Check-out date must be after Check-in date.");
-            }
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Please enter dates in exact YYYY-MM-DD format.");
-        }
-        return false;
+
+    private void addRow(JPanel form, GridBagConstraints gbc, int row, String label, JComponent field) {
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
+        form.add(new JLabel(label), gbc);
+        gbc.gridx = 1; gbc.weightx = 1.0;
+        form.add(field, gbc);
+    }
+
+    private void updatePrice() {
+        priceLabel.setText(Billing.summary(room.getPrice(), getCheckIn(), getCheckOut()));
+        errorLabel.setText(" ");
     }
 
     private void confirmBooking() {
-        if (getCustomerName().equals("Unknown Guest")) {
-            JOptionPane.showMessageDialog(this, "Enter at least one guest name.", "Missing Guest Name", JOptionPane.WARNING_MESSAGE);
+        if (nameFields[0].getText().isBlank()) {
+            errorLabel.setText("Enter at least the first guest's name.");
+            nameFields[0].requestFocusInWindow();
             return;
         }
-        if (!getContactNumber().matches("\\d{7,15}")) {
-            JOptionPane.showMessageDialog(this, "Contact number must contain 7 to 15 digits.", "Invalid Contact", JOptionPane.WARNING_MESSAGE);
+        String error = Validator.checkReservation(getCustomerName(), getContactNumber(), getCheckIn(), getCheckOut(), true);
+        if (error == null && !new ReservationDAO().isRoomFree(room.getRoomNumber(), getCheckIn(), getCheckOut(), 0)) {
+            error = "Room " + room.getRoomNumber() + " is already booked for some of these dates.";
+        }
+        if (error != null) {
+            errorLabel.setText(error);
             return;
         }
-        if (calculatePrice()) {
-            isConfirmed = true;
-            dispose();
-        }
+        confirmed = true;
+        dispose();
     }
-    
-    // NEW LOGIC: Combines all guest names into one string for the database
-    public String getCustomerName() { 
-        StringBuilder allNames = new StringBuilder();
-        for (int i = 0; i < nameFields.length; i++) {
-            String name = nameFields[i].getText().trim();
+
+    // All filled-in guest names joined into one string, e.g. "Asha & Ravi".
+    public String getCustomerName() {
+        StringBuilder names = new StringBuilder();
+        for (JTextField field : nameFields) {
+            String name = field.getText().trim();
             if (!name.isEmpty()) {
-                if (allNames.length() > 0) {
-                    allNames.append(" & ");
-                }
-                allNames.append(name);
+                if (names.length() > 0) names.append(" & ");
+                names.append(name);
             }
         }
-        // If they left all blank, return "Unknown Guest" to prevent DB errors
-        return allNames.length() > 0 ? allNames.toString() : "Unknown Guest"; 
+        return names.toString();
     }
-    
-    public boolean isConfirmed() { return isConfirmed; }
-    public String getContactNumber() { return contactField.getText(); }
-    public String getCheckIn() { return checkInField.getText(); }
-    public String getCheckOut() { return checkOutField.getText(); }
-    public double getTotalPrice() { return calculatedTotal; }
+
+    public boolean isConfirmed() { return confirmed; }
+    public String getContactNumber() { return contactField.getText().trim(); }
+    public LocalDate getCheckIn() { return UITheme.getDate(checkInSpinner); }
+    public LocalDate getCheckOut() { return UITheme.getDate(checkOutSpinner); }
+    public double getTotal() { return Billing.total(room.getPrice(), Billing.nights(getCheckIn(), getCheckOut())); }
 }
