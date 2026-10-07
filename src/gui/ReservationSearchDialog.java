@@ -26,7 +26,7 @@ public class ReservationSearchDialog extends JDialog {
         searchPanel.setBorder(new EmptyBorder(14, 12, 0, 12));
         searchPanel.add(new JLabel("Search by guest name, contact, room or reservation ID:"));
         searchPanel.add(searchField);
-        resultLabel.setForeground(UITheme.MUTED);
+        resultLabel.setForeground(UITheme.muted());
         searchPanel.add(resultLabel);
         add(searchPanel, BorderLayout.NORTH);
 

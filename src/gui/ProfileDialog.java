@@ -8,6 +8,7 @@ import javax.swing.*;
 import java.awt.*;
 
 public class ProfileDialog extends JDialog {
+    private static final long serialVersionUID = 1L;
     private final User user;
     private final UserDAO dao = new UserDAO();
     private final JTextField name = new JTextField();
