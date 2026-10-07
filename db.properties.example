@@ -1,0 +1,9 @@
+# Copy this file to db.properties (same folder) and put in your own details.
+# db.properties is ignored by git, so your password never gets committed.
+
+# Oracle XE 18c/21c - use ONE of these URLs:
+#   jdbc:oracle:thin:@localhost:1521:XE       (SID XE)
+#   jdbc:oracle:thin:@localhost:1521/XEPDB1   (pluggable database XEPDB1)
+db.url=jdbc:oracle:thin:@localhost:1521:XE
+db.user=SYSTEM
+db.password=your_password_here

@@ -1,59 +1,46 @@
 package gui;
 
-import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import java.awt.*;
-import java.util.List;
 import dao.ReservationDAO;
 import model.BookedRoom;
 
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+
+// Every reservation ever made: booked, checked out and cancelled.
 public class HistoryDialog extends JDialog {
-    
+
     private static final long serialVersionUID = 1L;
+    private final ReservationTable table = new ReservationTable();
 
     public HistoryDialog(JFrame parent) {
-        super(parent, "Complete Hotel Booking History", true);
-        setSize(850, 450);
+        super(parent, "Booking History", true);
+        setSize(1000, 480);
         setLocationRelativeTo(parent);
         setLayout(new BorderLayout());
 
-        // Setup the Table
-        String[] columns = {"Room", "Type", "Guest Name(s)", "Contact", "Check-In", "Check-Out"};
-        DefaultTableModel tableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false; 
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(new EmptyBorder(12, 12, 12, 12));
+        add(scroll, BorderLayout.CENTER);
+
+        JButton receiptButton = UITheme.button("View Receipt", UITheme.TEAL);
+        receiptButton.addActionListener(e -> {
+            BookedRoom selected = table.getSelectedReservation();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(this, "Select a reservation first.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            } else {
+                new ReceiptDialog(this, selected).setVisible(true);
             }
-        };
-        
-        JTable table = new JTable(tableModel);
-        table.setFont(new Font("Arial", Font.PLAIN, 14));
-        table.setRowHeight(25);
-        table.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
-
-        // Fetch ALL data from Database
-        ReservationDAO dao = new ReservationDAO();
-        List<BookedRoom> history = dao.getBookingHistory();
-
-        for (BookedRoom b : history) {
-            Object[] row = {
-                b.getRoomNumber(), b.getRoomType(), b.getCustomerName(), 
-                b.getContact(), b.getCheckIn(), b.getCheckOut()
-            };
-            tableModel.addRow(row);
-        }
-
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        add(scrollPane, BorderLayout.CENTER);
-        
-        JButton closeButton = new JButton("Close");
-        closeButton.setFont(new Font("Arial", Font.PLAIN, 14));
+        });
+        JButton closeButton = UITheme.button("Close", UITheme.NAVY_LIGHT);
         closeButton.addActionListener(e -> dispose());
-        
-        JPanel bottomPanel = new JPanel();
-        bottomPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 15, 0));
-        bottomPanel.add(closeButton);
-        add(bottomPanel, BorderLayout.SOUTH);
+
+        JPanel buttons = new JPanel();
+        buttons.setBorder(new EmptyBorder(0, 0, 14, 0));
+        buttons.add(receiptButton);
+        buttons.add(closeButton);
+        add(buttons, BorderLayout.SOUTH);
+
+        table.setReservations(new ReservationDAO().getBookingHistory());
     }
 }

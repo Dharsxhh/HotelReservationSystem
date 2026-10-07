@@ -1,165 +1,358 @@
 package dao;
 
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import model.BookedRoom;
+import util.Billing;
+import util.Session;
 
 public class ReservationDAO {
 
-    public boolean createReservation(String customerName, String contact, String checkIn, String checkOut, double total, String roomNumber) {
-        
-        String insertReservationSQL = "INSERT INTO reservations (customer_name, contact_number, check_in_date, check_out_date, subtotal, total_rent) VALUES (?, ?, TO_DATE(?, 'YYYY-MM-DD'), TO_DATE(?, 'YYYY-MM-DD'), ?, ?)";
-        String insertReservedRoomSQL = "INSERT INTO reserved_rooms (reservation_id, room_number) VALUES (?, ?)";
-        String updateRoomSQL = "UPDATE rooms SET is_available = 0 WHERE room_number = ?";
+    // Every reservation list in the app uses this same SELECT, with a different WHERE / ORDER BY.
+    private static final String SELECT_RESERVATIONS =
+        "SELECT res.reservation_id, r.room_number, r.room_type, r.price, res.customer_name, " +
+        "res.contact_number, res.check_in_date, res.check_out_date, res.subtotal, res.total_rent, res.status, res.user_id " +
+        "FROM reservations res " +
+        "JOIN reserved_rooms rr ON res.reservation_id = rr.reservation_id " +
+        "JOIN rooms r ON rr.room_number = r.room_number ";
 
-        Connection conn = null;
+    // ---------- Create ----------
 
-        try {
-            conn = DatabaseHelper.getConnection();
-            // Turn off auto-commit so we can run all three queries as one safe transaction
-            conn.setAutoCommit(false); 
+    // Saves a new booking and returns its reservation ID, or -1 if the room is
+    // already booked for those dates (or the database failed).
+    public long createReservation(String customerName, String contact, LocalDate checkIn, LocalDate checkOut,
+                                  String roomNumber) {
+        if (Session.isLoggedIn() && !Session.isAdmin()) return -1;
+        return createReservation(customerName, contact, checkIn, checkOut, roomNumber, null);
+    }
 
-            // 1. Insert into reservations table and get the auto-generated ID back
-            long reservationId = -1;
-            try (PreparedStatement pstmt1 = conn.prepareStatement(insertReservationSQL, new String[]{"reservation_id"})) {
-                pstmt1.setString(1, customerName);
-                pstmt1.setString(2, contact);
-                pstmt1.setString(3, checkIn);
-                pstmt1.setString(4, checkOut);
-                pstmt1.setDouble(5, total);
-                pstmt1.setDouble(6, total); // total_rent is same as subtotal for now
-                
-                pstmt1.executeUpdate();
-                
-                try (ResultSet rs = pstmt1.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        reservationId = rs.getLong(1);
+    public long createReservation(String customerName, String contact, LocalDate checkIn, LocalDate checkOut,
+                                  String roomNumber, Long userId) {
+        String insertReservation = "INSERT INTO reservations (customer_name, contact_number, check_in_date, " +
+                                   "check_out_date, subtotal, total_rent, status, user_id) VALUES (?, ?, ?, ?, ?, ?, 'BOOKED', ?)";
+        String insertRoomLink = "INSERT INTO reserved_rooms (reservation_id, room_number) VALUES (?, ?)";
+
+        try (Connection conn = DatabaseHelper.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                // Lock the room row so two desks can't book the same room at the same moment.
+                double price = lockRoomAndGetPrice(conn, roomNumber);
+                if (!isRoomFree(conn, roomNumber, checkIn, checkOut, 0)) {
+                    conn.rollback();
+                    return -1;
+                }
+
+                long nights = Billing.nights(checkIn, checkOut);
+                long reservationId;
+                try (PreparedStatement pstmt = conn.prepareStatement(insertReservation, new String[]{"reservation_id"})) {
+                    pstmt.setString(1, customerName);
+                    pstmt.setString(2, contact);
+                    pstmt.setDate(3, Date.valueOf(checkIn));
+                    pstmt.setDate(4, Date.valueOf(checkOut));
+                    pstmt.setDouble(5, Billing.subtotal(price, nights));
+                    pstmt.setDouble(6, Billing.total(price, nights));
+                    if (userId == null) pstmt.setNull(7, java.sql.Types.NUMERIC); else pstmt.setLong(7, userId);
+                    pstmt.executeUpdate();
+                    try (ResultSet keys = pstmt.getGeneratedKeys()) {
+                        if (!keys.next()) throw new SQLException("Could not create a reservation ID.");
+                        reservationId = keys.getLong(1);
                     }
                 }
-            }
 
-            // 2. Link the room to this new reservation
-            try (PreparedStatement pstmt2 = conn.prepareStatement(insertReservedRoomSQL)) {
-                pstmt2.setLong(1, reservationId);
-                pstmt2.setString(2, roomNumber);
-                pstmt2.executeUpdate();
-            }
-
-            // 3. Mark the room as booked
-            try (PreparedStatement pstmt3 = conn.prepareStatement(updateRoomSQL)) {
-                pstmt3.setString(1, roomNumber);
-                pstmt3.executeUpdate();
-            }
-
-            // If we made it here without errors, save it all!
-            conn.commit();
-            return true;
-
-        } catch (SQLException e) {
-            System.err.println("Error saving reservation to database. Rolling back.");
-            e.printStackTrace();
-            if (conn != null) {
-                try {
-                    conn.rollback(); // Cancel all changes if something failed
-                } catch (SQLException ex) {
-                    ex.printStackTrace();
+                try (PreparedStatement pstmt = conn.prepareStatement(insertRoomLink)) {
+                    pstmt.setLong(1, reservationId);
+                    pstmt.setString(2, roomNumber);
+                    pstmt.executeUpdate();
                 }
+
+                conn.commit();
+                return reservationId;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
             }
+        } catch (SQLException e) {
+            System.err.println("Error saving reservation: " + e.getMessage());
+            return -1;
+        }
+    }
+
+    // ---------- Read ----------
+
+    public List<BookedRoom> getCurrentBookings() {
+        if (Session.isLoggedIn() && !Session.isAdmin()) return getCurrentBookingsForUser(Session.current().getId());
+        return query(SELECT_RESERVATIONS + "WHERE res.status = 'BOOKED' ORDER BY res.check_in_date, r.room_number");
+    }
+
+    public List<BookedRoom> getCurrentBookingsForUser(long userId) {
+        return query(SELECT_RESERVATIONS + "WHERE res.user_id = ? AND res.status = 'BOOKED' ORDER BY res.check_in_date, r.room_number", String.valueOf(userId));
+    }
+
+    public List<BookedRoom> getBookingHistory() {
+        if (Session.isLoggedIn() && !Session.isAdmin()) return getBookingHistoryForUser(Session.current().getId());
+        return query(SELECT_RESERVATIONS + "ORDER BY res.check_in_date DESC, res.reservation_id DESC");
+    }
+
+    // Matches guest name, contact number, room number or reservation ID (partial text is fine).
+    public List<BookedRoom> searchReservations(String searchText) {
+        if (Session.isLoggedIn() && !Session.isAdmin()) return searchReservationsForUser(searchText, Session.current().getId());
+        String pattern = "%" + (searchText == null ? "" : searchText.trim().toLowerCase()) + "%";
+        String sql = SELECT_RESERVATIONS +
+                     "WHERE LOWER(res.customer_name) LIKE ? OR res.contact_number LIKE ? " +
+                     "OR r.room_number LIKE ? OR TO_CHAR(res.reservation_id) LIKE ? " +
+                     "ORDER BY res.reservation_id DESC";
+        return query(sql, pattern, pattern, pattern, pattern);
+    }
+
+    public List<BookedRoom> getBookingHistoryForUser(long userId) {
+        return query(SELECT_RESERVATIONS + "WHERE res.user_id = ? ORDER BY res.check_in_date DESC, res.reservation_id DESC", String.valueOf(userId));
+    }
+
+    public List<BookedRoom> searchReservationsForUser(String searchText, long userId) {
+        String pattern = "%" + (searchText == null ? "" : searchText.trim().toLowerCase()) + "%";
+        String sql = SELECT_RESERVATIONS +
+            "WHERE res.user_id = ? AND (LOWER(res.customer_name) LIKE ? OR res.contact_number LIKE ? " +
+            "OR r.room_number LIKE ? OR TO_CHAR(res.reservation_id) LIKE ?) " +
+            "ORDER BY res.reservation_id DESC";
+        return query(sql, String.valueOf(userId), pattern, pattern, pattern, pattern);
+    }
+
+    // Is this room free for these dates? ignoreReservationId lets an edit ignore its own booking (use 0 for none).
+    public boolean isRoomFree(String roomNumber, LocalDate checkIn, LocalDate checkOut, long ignoreReservationId) {
+        try (Connection conn = DatabaseHelper.getConnection()) {
+            return isRoomFree(conn, roomNumber, checkIn, checkOut, ignoreReservationId);
+        } catch (SQLException e) {
+            System.err.println("Error checking room availability: " + e.getMessage());
             return false;
-        } finally {
-            if (conn != null) {
-                try {
-                    conn.setAutoCommit(true);
-                    conn.close();
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
-            }
         }
     }
-    
- // NEW METHOD: Fetch all booked rooms with their customer details
-    public java.util.List<model.BookedRoom> getAllBookings() {
-        java.util.List<model.BookedRoom> bookedRooms = new java.util.ArrayList<>();
-        
-        // This SQL joins our 3 tables together to get the full picture
-        String sql = "SELECT r.room_number, r.room_type, res.customer_name, res.contact_number, res.check_in_date, res.check_out_date " +
-                     "FROM rooms r " +
-                     "JOIN reserved_rooms rr ON r.room_number = rr.room_number " +
-                     "JOIN reservations res ON rr.reservation_id = res.reservation_id " +
-                     "WHERE r.is_available = 0 " +
-                     "ORDER BY r.room_number";
 
-        try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql);
-             ResultSet rs = pstmt.executeQuery()) {
+    // Active bookings whose stay includes today.
+    public int countOccupiedToday() {
+        return count("SELECT COUNT(*) FROM reservations WHERE status = 'BOOKED' " +
+                     "AND check_in_date <= TRUNC(SYSDATE) AND check_out_date > TRUNC(SYSDATE)");
+    }
 
-            while (rs.next()) {
-                bookedRooms.add(new model.BookedRoom(
-                    rs.getString("room_number"),
-                    rs.getString("room_type"),
-                    rs.getString("customer_name"),
-                    rs.getString("contact_number"),
-                    rs.getDate("check_in_date"),
-                    rs.getDate("check_out_date")
-                ));
+    public int countActiveReservations() {
+        return count("SELECT COUNT(*) FROM reservations WHERE status = 'BOOKED'");
+    }
+
+    public int countArrivalsToday() {
+        return count("SELECT COUNT(*) FROM reservations WHERE status = 'BOOKED' AND check_in_date = TRUNC(SYSDATE)");
+    }
+
+    public double revenueThisMonth() {
+        String sql = "SELECT NVL(SUM(total_rent), 0) FROM reservations WHERE status IN ('BOOKED', 'CHECKED_OUT') " +
+                     "AND check_in_date >= TRUNC(SYSDATE, 'MM') AND check_in_date < ADD_MONTHS(TRUNC(SYSDATE, 'MM'), 1)";
+        try (Connection conn = DatabaseHelper.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql); ResultSet rs = pstmt.executeQuery()) {
+            rs.next(); return rs.getDouble(1);
+        } catch (SQLException e) { System.err.println("Error calculating monthly revenue: " + e.getMessage()); return 0; }
+    }
+
+    // ---------- Update ----------
+
+    // Changes guest details, dates and/or room of an active booking, and recalculates the price.
+    // Returns false if the new room is taken for those dates or the booking is no longer active.
+    public boolean updateReservation(long reservationId, String customerName, String contact,
+                                     LocalDate checkIn, LocalDate checkOut, String roomNumber) {
+        if (Session.isLoggedIn() && !Session.isAdmin()) return false;
+        String updateReservation = "UPDATE reservations SET customer_name = ?, contact_number = ?, check_in_date = ?, " +
+                                   "check_out_date = ?, subtotal = ?, total_rent = ? " +
+                                   "WHERE reservation_id = ? AND status = 'BOOKED'";
+        String updateRoomLink = "UPDATE reserved_rooms SET room_number = ? WHERE reservation_id = ?";
+
+        try (Connection conn = DatabaseHelper.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                double price = lockRoomAndGetPrice(conn, roomNumber);
+                if (!isRoomFree(conn, roomNumber, checkIn, checkOut, reservationId)) {
+                    conn.rollback();
+                    return false;
+                }
+
+                long nights = Billing.nights(checkIn, checkOut);
+                int updated;
+                try (PreparedStatement pstmt = conn.prepareStatement(updateReservation)) {
+                    pstmt.setString(1, customerName);
+                    pstmt.setString(2, contact);
+                    pstmt.setDate(3, Date.valueOf(checkIn));
+                    pstmt.setDate(4, Date.valueOf(checkOut));
+                    pstmt.setDouble(5, Billing.subtotal(price, nights));
+                    pstmt.setDouble(6, Billing.total(price, nights));
+                    pstmt.setLong(7, reservationId);
+                    updated = pstmt.executeUpdate();
+                }
+                if (updated != 1) {
+                    conn.rollback();
+                    return false;
+                }
+
+                try (PreparedStatement pstmt = conn.prepareStatement(updateRoomLink)) {
+                    pstmt.setString(1, roomNumber);
+                    pstmt.setLong(2, reservationId);
+                    pstmt.executeUpdate();
+                }
+
+                conn.commit();
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
             }
         } catch (SQLException e) {
-            System.err.println("Error fetching bookings.");
-            e.printStackTrace();
+            System.err.println("Error updating reservation: " + e.getMessage());
+            return false;
         }
-        
-        return bookedRooms;
-        
-        
     }
- // NEW METHOD: Frees up the room without deleting the customer's history
-    public boolean checkoutRoom(String roomNumber) {
-        String sql = "UPDATE rooms SET is_available = 1 WHERE room_number = ?";
+
+    public boolean updateReservationForUser(long reservationId, long userId, String customerName, String contact,
+                                            LocalDate checkIn, LocalDate checkOut, String roomNumber) {
+        if (!checkIn.isAfter(LocalDate.now())) return false;
+        String sql = "UPDATE reservations SET customer_name = ?, contact_number = ?, check_in_date = ?, " +
+                     "check_out_date = ?, subtotal = ?, total_rent = ? " +
+                     "WHERE reservation_id = ? AND user_id = ? AND status = 'BOOKED' " +
+                     "AND check_in_date > TRUNC(SYSDATE)";
+        try (Connection conn = DatabaseHelper.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                double price = lockRoomAndGetPrice(conn, roomNumber);
+                if (!isRoomFree(conn, roomNumber, checkIn, checkOut, reservationId)) { conn.rollback(); return false; }
+                try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                    long nights = Billing.nights(checkIn, checkOut);
+                    pstmt.setString(1, customerName); pstmt.setString(2, contact);
+                    pstmt.setDate(3, Date.valueOf(checkIn)); pstmt.setDate(4, Date.valueOf(checkOut));
+                    pstmt.setDouble(5, Billing.subtotal(price, nights)); pstmt.setDouble(6, Billing.total(price, nights));
+                    pstmt.setLong(7, reservationId); pstmt.setLong(8, userId);
+                    if (pstmt.executeUpdate() != 1) { conn.rollback(); return false; }
+                }
+                try (PreparedStatement link = conn.prepareStatement("UPDATE reserved_rooms SET room_number = ? WHERE reservation_id = ?")) {
+                    link.setString(1, roomNumber); link.setLong(2, reservationId); link.executeUpdate();
+                }
+                conn.commit(); return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (SQLException e) { System.err.println("Error updating customer reservation: " + e.getMessage()); return false; }
+    }
+
+    // Cancelling keeps the row (status CANCELLED) so it still shows in history.
+    // Only active bookings can be cancelled, so an old stay can never free a room someone is using now.
+    public boolean cancelReservation(long reservationId) {
+        if (Session.isLoggedIn() && !Session.isAdmin()) return false;
+        return changeStatus(reservationId, "CANCELLED");
+    }
+
+    public boolean cancelReservationForUser(long reservationId, long userId) {
+        String sql = "UPDATE reservations SET status = 'CANCELLED' WHERE reservation_id = ? AND user_id = ? " +
+                     "AND status = 'BOOKED' AND check_in_date > TRUNC(SYSDATE)";
+        try (Connection conn = DatabaseHelper.getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setLong(1, reservationId); pstmt.setLong(2, userId);
+                boolean changed = pstmt.executeUpdate() == 1;
+                if (changed) conn.commit(); else conn.rollback();
+                return changed;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (SQLException e) { System.err.println("Error cancelling customer reservation: " + e.getMessage()); return false; }
+    }
+
+    public boolean checkOut(long reservationId) {
+        if (Session.isLoggedIn() && !Session.isAdmin()) return false;
+        return changeStatus(reservationId, "CHECKED_OUT");
+    }
+
+    // ---------- Helpers ----------
+
+    private boolean changeStatus(long reservationId, String newStatus) {
+        String sql = "UPDATE reservations SET status = ? WHERE reservation_id = ? AND status = 'BOOKED'";
         try (Connection conn = DatabaseHelper.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-             
-            pstmt.setString(1, roomNumber);
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
-            
+            pstmt.setString(1, newStatus);
+            pstmt.setLong(2, reservationId);
+            return pstmt.executeUpdate() == 1;
         } catch (SQLException e) {
-            System.err.println("Error during checkout process.");
-            e.printStackTrace();
+            System.err.println("Error changing reservation status: " + e.getMessage());
             return false;
         }
     }
- // NEW METHOD: Fetches EVERY booking ever made (Current and Past)
-    public java.util.List<model.BookedRoom> getBookingHistory() {
-        java.util.List<model.BookedRoom> history = new java.util.ArrayList<>();
-        
-        // Notice we removed the "WHERE r.is_available = 0" filter here
-        String sql = "SELECT r.room_number, r.room_type, res.customer_name, res.contact_number, res.check_in_date, res.check_out_date " +
-                     "FROM rooms r " +
-                     "JOIN reserved_rooms rr ON r.room_number = rr.room_number " +
-                     "JOIN reservations res ON rr.reservation_id = res.reservation_id " +
-                     "ORDER BY res.check_in_date DESC"; // Orders by most recent check-in
 
+    private double lockRoomAndGetPrice(Connection conn, String roomNumber) throws SQLException {
+        try (PreparedStatement pstmt = conn.prepareStatement(
+                "SELECT price FROM rooms WHERE room_number = ? FOR UPDATE")) {
+            pstmt.setString(1, roomNumber);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (!rs.next()) throw new SQLException("Room " + roomNumber + " does not exist.");
+                return rs.getDouble("price");
+            }
+        }
+    }
+
+    private boolean isRoomFree(Connection conn, String roomNumber, LocalDate checkIn, LocalDate checkOut,
+                               long ignoreReservationId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM reserved_rooms rr " +
+                     "JOIN reservations res ON res.reservation_id = rr.reservation_id " +
+                     "WHERE rr.room_number = ? AND res.status = 'BOOKED' AND res.reservation_id <> ? " +
+                     "AND res.check_in_date < ? AND res.check_out_date > ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, roomNumber);
+            pstmt.setLong(2, ignoreReservationId);
+            pstmt.setDate(3, Date.valueOf(checkOut));
+            pstmt.setDate(4, Date.valueOf(checkIn));
+            try (ResultSet rs = pstmt.executeQuery()) {
+                rs.next();
+                return rs.getInt(1) == 0;
+            }
+        }
+    }
+
+    private List<BookedRoom> query(String sql, String... params) {
+        List<BookedRoom> list = new ArrayList<>();
+        try (Connection conn = DatabaseHelper.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            for (int i = 0; i < params.length; i++) {
+                pstmt.setString(i + 1, params[i]);
+            }
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new BookedRoom(
+                        rs.getLong("reservation_id"),
+                        rs.getLong("user_id"),
+                        rs.getString("room_number"),
+                        rs.getString("room_type"),
+                        rs.getDouble("price"),
+                        rs.getString("customer_name"),
+                        rs.getString("contact_number"),
+                        rs.getDate("check_in_date").toLocalDate(),
+                        rs.getDate("check_out_date").toLocalDate(),
+                        rs.getDouble("subtotal"),
+                        rs.getDouble("total_rent"),
+                        rs.getString("status")));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error loading reservations: " + e.getMessage());
+        }
+        return list;
+    }
+
+    private int count(String sql) {
         try (Connection conn = DatabaseHelper.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
              ResultSet rs = pstmt.executeQuery()) {
-
-            while (rs.next()) {
-                history.add(new model.BookedRoom(
-                    rs.getString("room_number"),
-                    rs.getString("room_type"),
-                    rs.getString("customer_name"),
-                    rs.getString("contact_number"),
-                    rs.getDate("check_in_date"),
-                    rs.getDate("check_out_date")
-                ));
-            }
+            return rs.next() ? rs.getInt(1) : 0;
         } catch (SQLException e) {
-            System.err.println("Error fetching booking history.");
-            e.printStackTrace();
+            System.err.println("Error counting reservations: " + e.getMessage());
+            return 0;
         }
-        return history;
     }
 }
