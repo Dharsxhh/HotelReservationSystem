@@ -82,3 +82,31 @@ java -cp "out;lib\ojdbc17.jar;lib\flatlaf-3.5.4.jar" gui.LoginFrame
 On macOS/Linux, use `/` in the paths and `:` instead of `;` in the classpath.
 
 To test only the database connection, run `dao.DatabaseHelper`.
+
+## Roles
+
+* **Admin:** `admin` / `admin123` — full dashboard, walk-in bookings, checkout, history, customer accounts and room management.
+* **Customer:** create an account from the login screen — view rooms, book, search, modify, cancel and view receipts for their own reservations.
+
+## Screenshots
+
+`![Login screen](docs/screenshots/login.png)`
+
+`![Admin dashboard](docs/screenshots/admin-dashboard.png)`
+
+`![Customer home](docs/screenshots/customer-home.png)`
+
+## Requirement map
+
+| Requirement | Implementation |
+|---|---|
+| View available rooms | `RoomDAO.getAvailableRooms`, `MainFrame`, `CustomerDashboard` |
+| Enter guest details | `BookingDialog`, `Validator` |
+| Make a reservation | `ReservationDAO.createReservation` |
+| Search reservations | `ReservationDAO.searchReservations`, `CustomerBookingsDialog` |
+| Modify reservations | `ReservationDAO.updateReservation`, `updateReservationForUser` |
+| Cancel reservations | `ReservationDAO.cancelReservation`, `cancelReservationForUser` |
+| GUI and event handling | Swing frames/dialogs, listeners and table actions in `gui` |
+| Input validation | `util.Validator` and live `LoginFrame` registration validation |
+| JDBC persistence | `DatabaseHelper`, all SQL in `dao` with `PreparedStatement` |
+| Role and ownership security | `UserDAO`, `Session`, user-scoped reservation DAO methods |
